@@ -23,6 +23,7 @@ export const state = {
       groupByGenre: true,
       groundToLibrary: true,
       alwaysPip: false,
+      theme: 'aurora',
       mediaRoots: []
     },
     store.get('settings', {})),
@@ -37,6 +38,8 @@ if (!state.settings.model || String(state.settings.model).includes('MLC'))
 state.settings.groundToLibrary = true;            // legacy flag; top scope controls outside suggestions
 state.settings.allowOutsideSuggestions = Boolean(state.settings.allowOutsideSuggestions);
 state.settings.useBraveSearch = Boolean(state.settings.useBraveSearch && state.settings.braveKey);
+state.settings.theme = ['aurora', 'ember', 'ocean', 'graphite', 'daylight', 'system']
+  .includes(state.settings.theme) ? state.settings.theme : 'aurora';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 

@@ -56,6 +56,32 @@ async function hasPreview(dataRoot, id) {
   catch { return false; }
 }
 
+// The generated clip is the durable asset. Discover it from disk rather than
+// relying solely on previews.jsonl, so removing/moving the original movie file
+// can never make an already-generated preview disappear from the app.
+async function listAvailable(dataRoot) {
+  const dir = path.join(dataRoot, 'library', 'previews');
+  let entries;
+  try { entries = await fsp.readdir(dir, { withFileTypes: true }); }
+  catch { return []; }
+  const available = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !/^[\w-]+\.mp4$/.test(entry.name)) continue;
+    const id = entry.name.slice(0, -4);
+    if (await hasPreview(dataRoot, id))
+      available.push({ id, file: previewKey(id), version: PREVIEW_VERSION });
+  }
+  return available.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function reusePreview(dataRoot, id) {
+  if (!await hasPreview(dataRoot, id)) return false;
+  // Repair/add the manifest entry for older clients while keeping the MP4 as
+  // the source of truth. This never needs the original full-length video.
+  await recordPreview(dataRoot, id);
+  return true;
+}
+
 async function buildPreview(dataRoot, id, file) {
   const out = previewPath(dataRoot, id);
   let info = null;
@@ -123,4 +149,4 @@ async function buildPreview(dataRoot, id, file) {
   return job;
 }
 
-module.exports = { buildPreview, hasPreview, previewKey, previewPath };
+module.exports = { buildPreview, hasPreview, listAvailable, reusePreview, previewKey, previewPath };

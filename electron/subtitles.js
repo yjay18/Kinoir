@@ -4,6 +4,7 @@
    one at a time with parseable progress. */
 
 const { spawn, execSync } = require('child_process');
+const { createHash } = require('crypto');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const os = require('os');
@@ -11,6 +12,7 @@ const path = require('path');
 
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const MODEL_URL = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin';
+const MODEL_SHA256 = '60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe';
 
 const jobs = new Map();   // key "id/s/e" -> { state, pct, error, outPath, startedAt }
 
@@ -19,9 +21,10 @@ function firstExisting(paths) {
   return null;
 }
 
-function resolveWhisper(resourcesDir) {
+function resolveWhisper(resourcesDir, packsRoot) {
   const found = firstExisting([
     process.env.WHISPER_PATH,
+    packsRoot && path.join(packsRoot, 'whisper', 'current', 'whisper-cli'),
     resourcesDir && path.join(resourcesDir, 'whisper', 'whisper-cli'),
     '/opt/homebrew/bin/whisper-cli', '/usr/local/bin/whisper-cli'
   ]);
@@ -33,32 +36,42 @@ function resolveWhisper(resourcesDir) {
   return null;
 }
 
-async function resolveModel(dataRoot, onPct) {
+function resolveModelPath(packsRoot) {
   const spots = [
     process.env.WHISPER_MODEL,
-    path.join(dataRoot, 'models', 'whisper', 'ggml-base.bin'),
+    packsRoot && path.join(packsRoot, 'whisper', 'models', 'ggml-base.bin'),
     path.join(__dirname, '..', 'models', 'whisper', 'ggml-base.bin')
   ];
-  const found = firstExisting(spots);
+  return firstExisting(spots);
+}
+
+async function resolveModel(packsRoot, onPct) {
+  const found = resolveModelPath(packsRoot);
   if (found) return found;
-  // auto-download to the data root (packaged app has a read-only bundle)
-  const target = path.join(dataRoot, 'models', 'whisper', 'ggml-base.bin');
+  // Download the optional model outside the app bundle and verify it before use.
+  const target = path.join(packsRoot, 'whisper', 'models', 'ggml-base.bin');
   await fsp.mkdir(path.dirname(target), { recursive: true });
   const res = await fetch(MODEL_URL, { redirect: 'follow' });
   if (!res.ok) throw new Error(`model download failed: HTTP ${res.status}`);
   const total = +res.headers.get('content-length') || 0;
   const tmp = target + '.tmp';
   const out = fs.createWriteStream(tmp);
+  const hash = createHash('sha256');
   let got = 0;
   const reader = res.body.getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     got += value.length;
+    hash.update(value);
     if (total && onPct) onPct(Math.round((got / total) * 100));
     if (!out.write(Buffer.from(value))) await new Promise(r => out.once('drain', r));
   }
   await new Promise(r => out.end(r));
+  if (hash.digest('hex') !== MODEL_SHA256) {
+    await fsp.rm(tmp, { force: true });
+    throw new Error('downloaded Whisper model failed its integrity check');
+  }
   await fsp.rename(tmp, target);
   return target;
 }
@@ -88,7 +101,7 @@ function status(key) {
 }
 
 /* Kick off (or return the in-flight) generation job for one video file. */
-function generate(dataRoot, resourcesDir, key, videoPath) {
+function generate(packsRoot, resourcesDir, key, videoPath) {
   const existing = jobs.get(key);
   if (existing && (existing.state === 'done' || existing.state === 'error' ? false : true)) return existing;
 
@@ -96,11 +109,11 @@ function generate(dataRoot, resourcesDir, key, videoPath) {
   jobs.set(key, job);
 
   (async () => {
-    const whisper = resolveWhisper(resourcesDir);
-    if (!whisper) throw new Error('whisper-cli not found — install with: brew install whisper-cpp');
+    const whisper = resolveWhisper(resourcesDir, packsRoot);
+    if (!whisper) throw new Error('Whisper is optional and is not installed. Open Settings → Components to set it up.');
 
     job.state = 'downloading-model';
-    const model = await resolveModel(dataRoot, pct => { job.pct = pct; });
+    const model = await resolveModel(packsRoot, pct => { job.pct = pct; });
 
     // 1. rip audio -> 16 kHz mono wav (what whisper.cpp expects)
     job.state = 'extracting-audio'; job.pct = 0;
@@ -138,4 +151,4 @@ async function sidecarVtt(videoPath) {
   return out;
 }
 
-module.exports = { generate, status, sidecarFor, sidecarVtt, resolveWhisper };
+module.exports = { generate, status, sidecarFor, sidecarVtt, resolveWhisper, resolveModelPath };

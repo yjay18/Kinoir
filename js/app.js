@@ -23,10 +23,14 @@ import {
   sendChat, syncSuggestionScopeUi
 } from './concierge.js';
 import { focusFirst } from './nav.js';
-import { startTaggingWorker } from './taxonomy.js';
 import { startSemanticWorker, rankLibrary } from './semantic.js';
 import { loadPreviewManifest, startPreviewWorker } from './previews.js';
+import { applyTheme, watchSystemTheme } from './theme.js';
+import { startLocalAvailabilityMonitor } from './local-media.js';
 import './hover.js';               // side-effect: hover-preview listeners
+
+applyTheme(state.settings.theme);
+watchSystemTheme(() => state.settings.theme);
 
 /* ---------- persistent controls ---------- */
 $('#brand').addEventListener('click', () => resetSearchAndGoHome());
@@ -109,17 +113,15 @@ if (cleaned.length !== state.library.length) { state.library = cleaned; saveLibr
 
 syncSuggestionScopeUi();
 render();
+startLocalAvailabilityMonitor();
 loadPreviewManifest().then(() => render());
 if (isAirClient) loadFromFolder(true);             // Air viewer: the Mac's library is the truth
 else if (!state.library.length) loadFromFolder(true);   // pick up a shared library/ folder if present
 else saveLibrary();                                // recreate/update library/library.json on launch
 
-// Background AI loops (not on Air viewers — phones shouldn't build tags/embeddings).
+// Background semantic indexing (not on Air viewers — phones shouldn't build embeddings).
 // Previews start first so a title opened immediately can begin preparing its teaser.
 if (!isAirClient) {
   startPreviewWorker();
-  setTimeout(() => {
-    startTaggingWorker();
-    startSemanticWorker();
-  }, 2000);
+  setTimeout(() => startSemanticWorker(), 2000);
 }

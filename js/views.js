@@ -11,6 +11,7 @@ import { openAddModal, loadFromFolder, importLibraryFile } from './modals.js';
 import { initLocalPlayer, destroyLocalPlayer } from './player.js';
 import { openMoreMenu } from './subtitles.js';
 import { hasPreview, invalidatePreview, previewUrl, requestPreview } from './previews.js';
+import { scheduleLocalAvailabilityRefresh } from './local-media.js';
 
 function localPathFor(item, s = 0, e = 0) {
   if (!item) return '';
@@ -33,6 +34,7 @@ export function render() {
   }
   bindView();
   focusFirst();
+  scheduleLocalAvailabilityRefresh();
   if (state.view.name === 'detail') {
     const item = state.library.find(i => i.id === state.view.id);
     if (item && !hasPreview(item.id)) {
@@ -195,7 +197,7 @@ function scheduleHeroRotation() {
 }
 
 function homeHtml() {
-  const items = state.library.filter(matches);
+  let items = state.library.filter(matches);
   if (!state.library.length) {
     return `<div class="empty glass">
       <div class="big">🎬</div>

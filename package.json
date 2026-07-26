@@ -7,17 +7,19 @@
   "main": "electron/main.js",
   "scripts": {
     "start": "electron .",
-    "predist": "./scripts/bundle-model.sh && ./scripts/bundle-ollama.sh",
-    "dist": "electron-builder --mac"
+    "predist": "./scripts/bundle-model.sh",
+    "dist": "electron-builder --mac",
+    "prepare:ollama-pack": "./scripts/bundle-ollama.sh",
+    "prepare:iina-pack": "./scripts/bundle-iina.sh"
   },
   "devDependencies": {
+    "@xenova/transformers": "^2.17.2",
     "electron": "^43.1.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "hls.js": "^1.6.16"
   },
   "dependencies": {
-    "@xenova/transformers": "^2.17.2",
     "ffmpeg-static": "^5.3.0",
-    "hls.js": "^1.6.16",
     "qrcode": "^1.5.4"
   },
   "build": {
@@ -33,13 +35,7 @@
       "css/**/*",
       "js/**/*",
       "electron/**/*",
-      "models/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "build/iina",
-        "to": "iina"
-      }
+      "models/Xenova/**/*"
     ],
     "mac": {
       "target": [

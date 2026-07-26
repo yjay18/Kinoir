@@ -51,12 +51,12 @@ function renderProgress() {
   const ratio = job.total ? Math.max(8, Math.round(((completed + (job.active ? 0.2 : 0)) / job.total) * 100)) : 8;
   el.innerHTML = `<div class="preview-progress-head"><span class="preview-spinner"></span>
       <span>Generating previews</span><span class="preview-progress-count">${completed} / ${job.total}</span></div>
-    <div class="preview-progress-title">${esc(job.error ? `Skipped ${job.title}` : job.title)}</div>
+    <div class="preview-progress-title">${esc(job.title)}</div>
     <div class="preview-progress-track"><span style="width:${ratio}%"></span></div>`;
 }
 
 function beginProgress(key, total, title) {
-  progressJobs.set(key, { total, completed: 0, title, active: true, error: false });
+  progressJobs.set(key, { total, completed: 0, title, active: true });
   renderProgress();
 }
 
@@ -79,31 +79,42 @@ export function beginManualPreviewProgress(id, title) {
 }
 
 export function finishManualPreviewProgress(key, ok) {
-  updateProgress(key, { completed: 1, active: false, error: !ok });
-  setTimeout(() => finishProgress(key), ok ? 600 : 1800);
+  if (!ok) { finishProgress(key); return; }
+  updateProgress(key, { completed: 1, active: false });
+  setTimeout(() => finishProgress(key), 600);
 }
 
 export async function loadPreviewManifest() {
+  let entries = null;
   try {
-    const r = await fetch(manifestUrl, { cache: 'no-store' });
-    if (!r.ok) {
-      if (r.status === 404) { files.clear(); ready.clear(); }
-      return;
+    const api = await fetch('/api/preview/list', { cache: 'no-store' });
+    if (api.ok) {
+      const data = await api.json().catch(() => ({}));
+      if (Array.isArray(data.entries)) entries = data.entries;
     }
-    const entries = (await r.text()).split(/\r?\n/).filter(Boolean).flatMap(line => {
-      try { return [JSON.parse(line)]; } catch { return []; }
-    }).filter(entry => /^[\w-]+$/.test(String(entry?.id || '')) &&
+  } catch { /* older/static host — fall back to the manifest below */ }
+  if (!entries) {
+    try {
+      const r = await fetch(manifestUrl, { cache: 'no-store' });
+      if (r.ok) entries = (await r.text()).split(/\r?\n/).filter(Boolean).flatMap(line => {
+        try { return [JSON.parse(line)]; } catch { return []; }
+      });
+      else if (r.status === 404) entries = [];
+    } catch { /* previews remain optional */ }
+  }
+  if (entries) {
+    entries = entries.filter(entry => /^[\w-]+$/.test(String(entry?.id || '')) &&
       /^previews\/[\w-]+\.mp4$/.test(String(entry?.file || '')) &&
       Number(entry.version) >= PREVIEW_VERSION);
     files.clear();
     ready.clear();
-    // The manifest already says which previews exist. Avoid a burst of one HEAD
-    // request per title during startup; files are validated only when used.
+    // The desktop API derives this list from real cached MP4s. Static/Air hosts
+    // retain the manifest fallback without a burst of one HEAD per title.
     for (const entry of entries) {
       files.set(entry.id, entry.file);
       ready.add(entry.id);
     }
-  } catch { /* previews are optional; a build can still create them */ }
+  }
 }
 
 export const previewUrl = id => `/library/${files.get(id) || `previews/${encodeURIComponent(id)}.mp4`}`;
@@ -146,8 +157,9 @@ async function ensureOne(item) {
 }
 
 export function ensurePreview(item) {
-  if (!item?.id || !hasLocalSource(item)) return Promise.resolve(false);
+  if (!item?.id) return Promise.resolve(false);
   if (ready.has(item.id)) return Promise.resolve(true);
+  if (!hasLocalSource(item)) return Promise.resolve(false);
   if (inflight.has(item.id)) return inflight.get(item.id);
   queuedBuilds++;
   const tracked = buildTail.then(() => ensureOne(item)).finally(() => {
@@ -169,9 +181,9 @@ export function requestPreview(item, { opportunistic = false } = {}) {
   const jobKey = `request:${item.id}`;
   beginProgress(jobKey, 1, item.title);
   return ensurePreview(item).then(ok => {
-    updateProgress(jobKey, { completed: 1, active: false, error: !ok,
-      title: ok ? item.title : `${item.title} — ${previewFailure(item.id)}` });
-    setTimeout(() => finishProgress(jobKey), ok ? 500 : 1600);
+    if (!ok) { finishProgress(jobKey); return false; }
+    updateProgress(jobKey, { completed: 1, active: false, title: item.title });
+    setTimeout(() => finishProgress(jobKey), 500);
     return ok;
   });
 }
@@ -197,10 +209,11 @@ export async function startPreviewWorker() {
     const jobKey = `startup:${item.id}`;
     beginProgress(jobKey, 1, item.title);
     const ok = await ensurePreview(item);
-    updateProgress(jobKey, { completed: 1, active: false, error: !ok,
-      title: ok ? item.title : `${item.title} — ${previewFailure(item.id)}` });
-    await sleep(ok ? 400 : 1200);
-    finishProgress(jobKey);
+    if (ok) {
+      updateProgress(jobKey, { completed: 1, active: false, title: item.title });
+      await sleep(400);
+      finishProgress(jobKey);
+    } else finishProgress(jobKey);
     await sleep(350);
   }
 }

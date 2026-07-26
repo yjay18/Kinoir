@@ -4,6 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Linkflix</title>
+<script>
+  (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lf:settings') || '{}');
+      const choices = ['aurora', 'ember', 'ocean', 'graphite', 'daylight', 'system'];
+      const preference = choices.includes(saved.theme) ? saved.theme : 'aurora';
+      const theme = preference === 'system'
+        ? (matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'aurora')
+        : preference;
+      document.documentElement.dataset.themePreference = preference;
+      document.documentElement.dataset.theme = theme;
+    } catch { /* use the Aurora defaults */ }
+  })();
+</script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -17,14 +31,15 @@
 
   <!-- Top bar -->
   <header class="topbar glass">
-    <div class="brand" id="brand" title="Home (H)">
+    <button class="brand" id="brand" type="button" title="Home (H)" aria-label="Linkflix home and clear search">
       <span class="brand-mark">▶</span> Link<span class="brand-accent">flix</span>
-    </div>
+    </button>
     <div class="topbar-search">
       <span class="search-icon">⌕</span>
-      <input id="search-input" type="text" placeholder="Search your library…  ( / )" autocomplete="off">
+      <label class="sr-only" for="search-input">Search your library</label>
+      <input id="search-input" type="search" placeholder="Search your library…  ( / )" autocomplete="off">
     </div>
-    <nav class="topbar-actions">
+    <nav class="topbar-actions" aria-label="Primary actions">
       <button class="pill-btn" id="btn-add" title="Add title (A)">＋ Add <kbd>A</kbd></button>
       <button class="pill-btn" id="btn-chat" title="AI Concierge (C)">✦ Concierge <kbd>C</kbd></button>
       <button class="pill-btn scope-btn" id="btn-scope" title="Suggestion scope">⌂ Library</button>
@@ -46,13 +61,13 @@
         <button type="button" class="mode-btn active" id="chat-scope-library" title="Only suggest from your library">⌂</button>
         <button type="button" class="mode-btn" id="chat-scope-outside" title="Allow outside suggestions">◎</button>
       </div>
-      <button class="pill-btn small icon-only" id="chat-refresh" title="Refresh Concierge context">⟳</button>
-      <button class="pill-btn small" id="chat-close" title="Close (Esc)">✕</button>
+      <button class="pill-btn small icon-only" id="chat-refresh" title="Refresh Concierge context" aria-label="Refresh Concierge context">⟳</button>
+      <button class="pill-btn small" id="chat-close" title="Close (Esc)" aria-label="Close Concierge">✕</button>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <form class="chat-inputrow" id="chat-form">
       <input id="chat-input" type="text" placeholder="What should I watch tonight?" autocomplete="off">
-      <button class="pill-btn accent" type="submit">↑</button>
+      <button class="pill-btn accent" type="submit" aria-label="Send message">↑</button>
     </form>
   </aside>
 

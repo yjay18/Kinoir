@@ -10,6 +10,8 @@ export function toast(msg) {
   $$('.toast').forEach(t => t.remove());
   const t = document.createElement('div');
   t.className = 'toast glass';
+  t.setAttribute('role', 'status');
+  t.setAttribute('aria-live', 'polite');
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2600);

@@ -9,8 +9,16 @@ import { syncSuggestionScopeUi } from './concierge.js';
 import { focusFirst } from './nav.js';
 import { openScanFlow } from './scan.js';
 import { loadPreviewManifest } from './previews.js';
+import { THEMES, applyTheme } from './theme.js';
 
-export function closeModal() { $('#modal-root').innerHTML = ''; focusFirst(); }
+let onModalClose = null;
+export function closeModal() {
+  const cleanup = onModalClose;
+  onModalClose = null;
+  cleanup?.();
+  $('#modal-root').innerHTML = '';
+  focusFirst();
+}
 export function modalOpen() { return !!$('#modal-root').firstElementChild; }
 
 /* ---------- Add / Edit ---------- */
@@ -380,11 +388,36 @@ export function openAddModal(editId = null) {
 
 /* ---------- Settings ---------- */
 export function openSettings() {
+  const originalTheme = state.settings.theme || 'aurora';
+  let previewTheme = originalTheme;
+  let themeCommitted = false;
+  onModalClose = () => { if (!themeCommitted) applyTheme(originalTheme); };
   $('#modal-root').innerHTML = `
   <div class="modal-overlay" data-overlay>
     <form class="modal glass" id="settings-form">
       <div class="modal-head"><h2>Settings</h2></div>
       <div class="modal-body">
+        <div class="field"><label>Appearance</label>
+          <div class="theme-grid" id="theme-grid" role="radiogroup" aria-label="App theme">
+            ${THEMES.map(theme => `<button type="button" class="theme-choice ${theme.id === originalTheme ? 'active' : ''}"
+              data-theme-choice="${theme.id}" role="radio" aria-checked="${theme.id === originalTheme}">
+              <span class="theme-swatch" aria-hidden="true">
+                ${theme.colors.map(color => `<i style="--swatch:${color}"></i>`).join('')}
+              </span>
+              <span class="theme-copy"><b>${theme.name}</b><small>${theme.description}</small></span>
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>`).join('')}
+          </div>
+          <div class="hint">Choose a theme to preview it instantly. System follows your Mac's light or dark appearance.</div></div>
+        <div class="field"><label>Optional components</label>
+          <div id="component-list" class="component-list" aria-live="polite">
+            <div class="component-loading">Checking installed components…</div>
+          </div>
+          <div class="component-actions">
+            <button type="button" class="pill-btn small" id="btn-components-refresh">⟳ Check again</button>
+          </div>
+          <div class="hint">Linkflix uses copies already installed on this Mac. Optional tools are
+            kept outside the core app so updates remain small.</div></div>
         <div class="field"><label>AI Concierge model (runs locally via Ollama)</label>
           <select id="f-model">
             <option value="${esc(state.settings.model)}" selected>${esc(state.settings.model)}</option>
@@ -455,17 +488,31 @@ export function openSettings() {
     </form>
   </div>`;
 
+  $('#theme-grid').addEventListener('click', e => {
+    const choice = e.target.closest('[data-theme-choice]');
+    if (!choice) return;
+    previewTheme = applyTheme(choice.dataset.themeChoice);
+    $$('[data-theme-choice]', $('#theme-grid')).forEach(button => {
+      const selected = button.dataset.themeChoice === previewTheme;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-checked', String(selected));
+    });
+  });
+
   $('#settings-form').addEventListener('submit', e => {
     e.preventDefault();
     const braveKey = $('#f-brave').value.trim();
     const wantsBrave = $('#f-use-brave').checked;
     state.settings = { ...state.settings, model: $('#f-model').value,
+      theme: previewTheme,
       braveKey,
       allowOutsideSuggestions: $('#f-outside').checked,
       useBraveSearch: wantsBrave && Boolean(braveKey),
       groundToLibrary: true,
       alwaysPip: $('#f-always-pip').checked,
       groupByGenre: $('#f-group').checked };
+    themeCommitted = true;
+    applyTheme(previewTheme);
     saveSettings();
     syncSuggestionScopeUi();
     closeModal();
@@ -474,6 +521,62 @@ export function openSettings() {
       : 'Settings saved ✓');
     render();
   });
+
+  // ---- optional desktop components ----
+  const componentMeta = {
+    ollama: { name: 'Local AI', icon: '✦', dependency: 'Ollama' },
+    iina: { name: 'Native playback', icon: '▶', dependency: 'IINA' },
+    whisper: { name: 'Local subtitles', icon: 'CC', dependency: 'Whisper' }
+  };
+  const renderComponents = components => {
+    const box = $('#component-list');
+    if (!box) return;
+    box.innerHTML = Object.entries(componentMeta).map(([key, meta]) => {
+      const item = components?.[key] || { state: 'missing', detail: 'Status unavailable' };
+      const label = { ready: 'Ready', installed: 'Installed', starting: 'Starting…', missing: 'Not installed' }[item.state] || 'Unavailable';
+      const action = key === 'ollama' && item.state === 'installed'
+        ? `<button type="button" class="pill-btn small" data-component-start="ollama">Start</button>`
+        : item.state === 'missing'
+          ? `<button type="button" class="pill-btn small" data-component-page="${key}">Set up</button>`
+          : '';
+      return `<div class="component-row">
+        <div class="component-icon">${meta.icon}</div>
+        <div class="component-copy"><b>${meta.name}</b><span>${meta.dependency} · ${esc(item.detail || '')}${item.source ? ` · ${esc(item.source)}` : ''}</span></div>
+        <span class="component-badge ${esc(item.state)}">${label}</span>${action}
+      </div>`;
+    }).join('');
+  };
+  const refreshComponents = async () => {
+    const box = $('#component-list');
+    if (!window.linkflix?.getComponentStatus) {
+      if (box) box.innerHTML = '<div class="component-loading">Component setup is available in the desktop app.</div>';
+      return;
+    }
+    if (box) box.classList.add('checking');
+    try { renderComponents(await window.linkflix.getComponentStatus()); }
+    catch { if (box) box.innerHTML = '<div class="component-loading">Could not check components.</div>'; }
+    finally { box?.classList.remove('checking'); }
+  };
+  $('#btn-components-refresh').addEventListener('click', refreshComponents);
+  $('#component-list').addEventListener('click', async e => {
+    const page = e.target.closest('[data-component-page]');
+    if (page) {
+      await window.linkflix?.openComponentPage?.(page.dataset.componentPage);
+      toast('Install it, then return here and press Check again');
+      return;
+    }
+    const start = e.target.closest('[data-component-start]');
+    if (start) {
+      start.disabled = true;
+      start.textContent = 'Starting…';
+      const result = await window.linkflix?.startOllama?.();
+      if (result?.components) renderComponents(result.components);
+      else await refreshComponents();
+      toast(result?.ok ? 'Local AI is ready' : 'Ollama could not be started');
+    }
+  });
+  void refreshComponents();
+
   $('#btn-folder-reload').addEventListener('click', async () => {
     if (await loadFromFolder(false)) closeModal();
   });

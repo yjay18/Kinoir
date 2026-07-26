@@ -165,8 +165,8 @@ async function renderBody(item) {
       return;
     }
     body.innerHTML =
-      (d.whisper ? '' : `<div class="hint" style="margin-bottom:10px">⚠️ whisper-cpp isn't installed —
-        run <code>brew install whisper-cpp</code> first.</div>`) +
+      (d.whisper ? '' : `<div class="hint" style="margin-bottom:10px">Whisper is an optional component.
+        Open <b>Settings → Optional components</b> to set it up.</div>`) +
       `<div class="hint" style="margin-bottom:10px">Transcribed on-device with Whisper — nothing leaves
         your Mac. The .vtt is saved next to the video, so IINA and the in-app player pick it up
         automatically.</div>` +

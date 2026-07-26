@@ -1,5 +1,6 @@
 /* ================= Covers & visual helpers ================= */
 import { esc } from './dom.js';
+import { hasLocalDownload } from './local-media.js';
 
 /* --- Covers (data-URLs stored right in the library JSON) --- */
 export function fileToDataUrl(file) {
@@ -48,11 +49,16 @@ export function gradientFor(seed) {
 
 export function coverHtml(item) {
   const src = coverSrc(item);
+  const localLabel = item.type === 'show' ? 'Local episodes available' : 'Downloaded locally';
   return `<div class="cover" style="background:${gradientFor(item.title)}">
     ${src ? `<img src="${esc(src)}" alt="" loading="lazy"
       onerror="this.remove()">` : ''}
     <div class="cover-fallback">${esc((item.title || '?')[0].toUpperCase())}</div>
     <span class="type-tag">${item.type === 'show' ? 'SERIES' : 'FILM'}</span>
     ${item.watched ? '<span class="watched-tag" title="Watched">✓</span>' : ''}
+    <span class="local-download-tag" data-local-download="${esc(item.id)}"
+      title="${localLabel}" aria-label="${localLabel}" ${hasLocalDownload(item.id) ? '' : 'hidden'}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M5 17v3h14v-3"/></svg>
+    </span>
   </div>`;
 }

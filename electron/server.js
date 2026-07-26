@@ -151,6 +151,28 @@ async function knownLocalPaths(rootDir) {
   return set;
 }
 
+async function localAvailability(rootDir) {
+  let library;
+  try {
+    library = JSON.parse(await fsp.readFile(path.join(rootDir, 'library', 'library.json'), 'utf8')).library || [];
+  } catch { return []; }
+  const results = await Promise.all(library.map(async item => {
+    const candidates = item.type === 'movie'
+      ? [item.localPath]
+      : (item.seasons || []).flatMap(season =>
+        (season.episodes || []).map(episode => episode.localPath));
+    for (const file of candidates) {
+      if (!file) continue;
+      try {
+        const stat = await fsp.stat(file);
+        if (stat.isFile() && stat.size > 0) return String(item.id || '');
+      } catch { /* moved, removed, or currently unavailable */ }
+    }
+    return '';
+  }));
+  return results.filter(id => /^[\w-]+$/.test(id));
+}
+
 /* POST /api/scan { roots:[abs...] } — walk the default Media/ folder plus any
    user folders, return parsed movie/show candidates. */
 async function handleScan(rootDir, res, body) {
@@ -256,7 +278,7 @@ async function handleMedia(rootDir, res, pathname) {
   return false;
 }
 
-function handle(staticRoot, dataRoot, req, res) {
+function handle(staticRoot, dataRoot, runtime, req, res) {
   const pathname = req.url.split('?')[0];
   if (req.method === 'GET' &&
       (pathname.startsWith('/probe/') || pathname.startsWith('/hls/') || pathname.startsWith('/subs/'))) {
@@ -276,7 +298,12 @@ function handle(staticRoot, dataRoot, req, res) {
         const file = await resolveLocalPath(dataRoot, id, +s, +e);
         if (!file) return send(res, 404, JSON.stringify({ ok: false, error: 'no local file' }),
           { 'Content-Type': 'application/json' });
-        const job = subtitles.generate(dataRoot, process.resourcesPath, `${id}/${s}/${e}`, file);
+        const job = subtitles.generate(
+          runtime.packsRoot || dataRoot,
+          runtime.resourcesDir || process.resourcesPath,
+          `${id}/${s}/${e}`,
+          file
+        );
         send(res, 200, JSON.stringify({ ok: true, job: { state: job.state, pct: job.pct } }),
           { 'Content-Type': 'application/json' });
       } catch (err) {
@@ -316,7 +343,10 @@ function handle(staticRoot, dataRoot, req, res) {
           }));
         }
         send(res, 200, JSON.stringify({ ok: true, rows,
-          whisper: !!subtitles.resolveWhisper(process.resourcesPath) }),
+          whisper: !!subtitles.resolveWhisper(
+            runtime.resourcesDir || process.resourcesPath,
+            runtime.packsRoot || dataRoot
+          ) }),
           { 'Content-Type': 'application/json' });
       })().catch(err => send(res, 500, JSON.stringify({ ok: false, error: String(err.message || err) }),
         { 'Content-Type': 'application/json' }));
@@ -326,6 +356,14 @@ function handle(staticRoot, dataRoot, req, res) {
   if (req.method === 'GET' && pathname === '/api/preview/status') {
     send(res, 200, JSON.stringify({ ok: true, version: 2 }),
       { 'Content-Type': 'application/json' });
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/preview/list') {
+    previews.listAvailable(dataRoot).then(entries =>
+      send(res, 200, JSON.stringify({ ok: true, entries }),
+        { 'Content-Type': 'application/json' })
+    ).catch(error => send(res, 500, JSON.stringify({ ok: false, entries: [],
+      error: String(error.message || error) }), { 'Content-Type': 'application/json' }));
     return;
   }
   // Legacy preview URL. New previews live in the shareable library folder.
@@ -349,7 +387,10 @@ function handle(staticRoot, dataRoot, req, res) {
     req.on('end', async () => {
       try {
         const { id } = JSON.parse(body || '{}');
-        if (!id) throw new Error('no id');
+        if (!/^[\w-]+$/.test(String(id || ''))) throw new Error('invalid id');
+        if (await previews.reusePreview(dataRoot, id))
+          return send(res, 200, JSON.stringify({ ok: true, ready: true, cached: true,
+            preview: previews.previewKey(id) }), { 'Content-Type': 'application/json' });
         const file = await firstLocalFile(dataRoot, id);
         if (!file) return send(res, 404, JSON.stringify({ ok: false, error: 'no local file' }),
           { 'Content-Type': 'application/json' });
@@ -376,6 +417,13 @@ function handle(staticRoot, dataRoot, req, res) {
       (/^en/.test(b.name) - /^en/.test(a.name)));
     const ip = candidates[0]?.address || '127.0.0.1';
     send(res, 200, JSON.stringify({ ip, port: req.socket.localPort }), { 'Content-Type': 'application/json' });
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/local-availability') {
+    localAvailability(dataRoot).then(ids =>
+      send(res, 200, JSON.stringify({ ok: true, ids }), { 'Content-Type': 'application/json' })
+    ).catch(error => send(res, 500, JSON.stringify({ ok: false, ids: [],
+      error: String(error.message || error) }), { 'Content-Type': 'application/json' }));
     return;
   }
   if (req.method === 'GET' && pathname === '/api/qr') {
@@ -432,9 +480,9 @@ function handle(staticRoot, dataRoot, req, res) {
 /* Start on preferredPort, walking forward a few ports if it's taken.
    `dataRoot` (writable: library/, Media/) defaults to staticRoot for dev.
    Resolves { server, port }. */
-function startServer(staticRoot, preferredPort = 4174, dataRoot = staticRoot) {
+function startServer(staticRoot, preferredPort = 4174, dataRoot = staticRoot, runtime = {}) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => handle(staticRoot, dataRoot, req, res));
+    const server = http.createServer((req, res) => handle(staticRoot, dataRoot, runtime, req, res));
     let port = preferredPort;
     const maxPort = preferredPort + 25;
     let settled = false;

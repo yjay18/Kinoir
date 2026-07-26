@@ -1,6 +1,5 @@
-/* Native playback for local files. Always target Linkflix's bundled IINA (with an
-   installed IINA as a development fallback) instead of asking macOS to choose an
-   opener, which can otherwise send MP4/MOV files to QuickTime. */
+/* Native playback for local files. Prefer an optional managed IINA pack or the
+   user's installed IINA instead of making the core application carry a second app. */
 
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -11,14 +10,12 @@ function firstExisting(paths) {
   return null;
 }
 
-// Prefer the packaged resource, then the checked-out development bundle. A system
-// IINA is only a last-resort development fallback; local files never go through the
-// macOS default-file-association path.
-function resolvePlayer(resourcesDir) {
+function resolvePlayer(resourcesDir, packsRoot) {
   const iina = firstExisting([
+    packsRoot && path.join(packsRoot, 'iina', 'current', 'IINA.app', 'Contents', 'MacOS', 'iina-cli'),
+    '/Applications/IINA.app/Contents/MacOS/iina-cli',
     resourcesDir && path.join(resourcesDir, 'iina', 'IINA.app', 'Contents', 'MacOS', 'iina-cli'),
-    path.join(__dirname, '..', 'build', 'iina', 'IINA.app', 'Contents', 'MacOS', 'iina-cli'),
-    '/Applications/IINA.app/Contents/MacOS/iina-cli'
+    path.join(__dirname, '..', 'build', 'iina', 'IINA.app', 'Contents', 'MacOS', 'iina-cli')
   ]);
   if (iina) return { kind: 'iina', bin: iina };
   return null;
@@ -32,10 +29,10 @@ function launch(bin, args) {
 
 // Play in IINA. Returns the player kind used.
 // playlist: optional array of additional file paths
-function playNative(filePath, resourcesDir, title, playlist, pip) {
+function playNative(filePath, resourcesDir, packsRoot, title, playlist, pip) {
   if (!filePath || !fs.existsSync(filePath)) throw new Error('file not found');
-  const player = resolvePlayer(resourcesDir);
-  if (!player) throw new Error('bundled IINA not found');
+  const player = resolvePlayer(resourcesDir, packsRoot);
+  if (!player) throw new Error('IINA is not installed');
   const appPath = player.bin.replace('/Contents/MacOS/iina-cli', '');
   launch('open', ['-a', appPath, filePath]);
   return player.kind;
@@ -43,8 +40,8 @@ function playNative(filePath, resourcesDir, title, playlist, pip) {
 
 // Compatibility route for the old "open externally" button. It deliberately uses
 // the same IINA-only path now, never Finder's/LaunchServices' default application.
-function openExternal(filePath, resourcesDir = process.resourcesPath) {
-  return playNative(filePath, resourcesDir);
+function openExternal(filePath, resourcesDir = process.resourcesPath, packsRoot) {
+  return playNative(filePath, resourcesDir, packsRoot);
 }
 
 module.exports = { resolvePlayer, playNative, openExternal };

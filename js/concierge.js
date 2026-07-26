@@ -65,11 +65,11 @@ export function renderChat() {
   const box = $('#chat-messages');
   if (!chatLog.length) {
     const outside = state.settings.allowOutsideSuggestions;
-    box.innerHTML = `<div class="msg assistant">Hi! I'm your concierge — I run locally on your
+  box.innerHTML = `<div class="msg assistant">Hi! I'm your concierge — I run locally on your
 Mac through Ollama (${esc(state.settings.model || 'llama3.2')}). Ask me anything about films
 and TV, or just chat. ${outside
   ? `Outside suggestions are <b>on</b>, so I can point you to great stuff beyond your library too${state.settings.useBraveSearch && state.settings.braveKey ? ', with live Brave search when it helps' : ''}.`
-  : `I'm in <b>library-focused</b> mode — any title I mention that you own turns into a play button.`}\n\nTop icons: ⌂ library-focused · ◎ outside suggestions. Press ⟳ to refresh my snapshot of your library.</div>`;
+  : `I'm in <b>library-only</b> mode — every recommendation will come from a title you own.`}\n\nTop icons: ⌂ library-only · ◎ outside suggestions. Press ⟳ to refresh my snapshot of your library.</div>`;
     return;
   }
   box.innerHTML = chatLog.map(m =>
@@ -120,7 +120,114 @@ function chatCardsHtml(cards, opts = {}) {
 
 // used only to decide whether to fetch optional Brave web context before the model runs
 function isRecommendationIntent(text) {
-  return /\b(recommend|suggest|what should i watch|what to watch|pick|choose|find me|something like|similar to|playlist|queue|lineup|curate|watchlist|movie night|binge|good|best|tonight|mood)\b/i.test(text);
+  return /\b(recommend(?:ation|ations)?|suggest(?:ion|ions)?|what should i watch|what to watch|pick|choose|find me|give me|show me|list (?:some|a few)|something like|similar to|playlist|queue|lineup|curate|watchlist|movie night|binge|good|best|tonight|mood|ideas|options)\b/i.test(text);
+}
+
+const recommendationStopWords = new Set([
+  'about', 'after', 'again', 'also', 'best', 'choose', 'find', 'from', 'give', 'good',
+  'have', 'ideas', 'library', 'list', 'movie', 'movies', 'option', 'options', 'pick',
+  'please', 'recommend', 'recommendation', 'recommendations', 'series', 'show', 'shows',
+  'something', 'suggest', 'suggestion', 'suggestions', 'that', 'the', 'this', 'tonight',
+  'want', 'watch', 'what', 'with', 'would', 'your'
+]);
+
+function recommendationTerms(text) {
+  return [...new Set(String(text || '').toLowerCase().match(/[a-z0-9]+/g) || [])]
+    .filter(word => word.length > 2 && !recommendationStopWords.has(word));
+}
+
+function matchesRequestedType(item, request) {
+  const wantsMovie = /\b(movie|movies|film|films)\b/i.test(request);
+  const wantsShow = /\b(show|shows|series|binge)\b/i.test(request);
+  if (wantsMovie && !wantsShow) return item.type === 'movie';
+  if (wantsShow && !wantsMovie) return item.type === 'show';
+  return true;
+}
+
+function fallbackLibraryPicks(request, max = 4) {
+  const terms = recommendationTerms(request);
+  const wantsMovie = /\b(movie|film)\b/i.test(request);
+  const wantsShow = /\b(show|series|binge)\b/i.test(request);
+  const wantsResume = /\b(resume|continue|finish|started)\b/i.test(request);
+  const inProgress = new Set(state.watchLog.map(entry => entry.itemId));
+
+  return state.library.filter(item => matchesRequestedType(item, request)).map((item, index) => {
+    const profile = itemRecommendationProfile(item);
+    const searchable = [item.title, item.genre, item.subtitle,
+      ...profile.categories, ...profile.tags].filter(Boolean).join(' ').toLowerCase();
+    let score = terms.reduce((total, term) => total + (searchable.includes(term) ? 5 : 0), 0);
+    if (wantsMovie) score += item.type === 'movie' ? 4 : -2;
+    if (wantsShow) score += item.type === 'show' ? 4 : -2;
+    if (wantsResume && inProgress.has(item.id)) score += 8;
+    if (!item.watched) score += 2;
+    if (isPlayable(item)) score += 1;
+    return { item, score, index };
+  }).sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, Math.min(max, state.library.length)).map(entry => entry.item);
+}
+
+function parseGroundedPicks(raw, request) {
+  const source = String(raw || '').replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  const start = source.indexOf('{');
+  const end = source.lastIndexOf('}');
+  if (start < 0 || end <= start) return [];
+  let payload;
+  try { payload = JSON.parse(source.slice(start, end + 1)); }
+  catch { return []; }
+  const picks = Array.isArray(payload.recommendations) ? payload.recommendations : [];
+  const used = new Set();
+  const validated = [];
+  for (const pick of picks) {
+    const number = Number(pick?.catalogNumber ?? pick?.id);
+    let item = Number.isInteger(number) && number >= 1 ? state.library[number - 1] : null;
+    if (!item && pick?.title) {
+      const wanted = String(pick.title).trim().toLowerCase();
+      item = state.library.find(candidate => candidate.title.toLowerCase() === wanted);
+    }
+    if (!item || !matchesRequestedType(item, request) || used.has(item.id)) continue;
+    used.add(item.id);
+    validated.push(item);
+    if (validated.length === 5) break;
+  }
+  return validated;
+}
+
+function groundedReason(item, request) {
+  if (state.watchLog.some(entry => entry.itemId === item.id))
+    return item.type === 'show' ? 'Already in progress — ready to resume.' : 'Already in progress — ready to finish.';
+  const profile = itemRecommendationProfile(item);
+  const terms = recommendationTerms(request);
+  const seen = new Set();
+  const matches = [...profile.categories, ...profile.tags]
+    .filter(value => terms.some(term => String(value).toLowerCase().includes(term)))
+    .filter(value => {
+      const key = String(value).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 2);
+  const kind = item.type === 'show' ? 'series' : 'film';
+  if (matches.length) return `${matches.join(' · ')} ${kind} that matches your request.`;
+  if (item.genre) return `${item.genre} ${kind} from your library.`;
+  return `${item.type === 'show' ? 'Series' : 'Film'} from your library.`;
+}
+
+function groundedRecommendationMessage(request, raw) {
+  const picked = parseGroundedPicks(raw, request);
+  const items = picked.length ? picked : fallbackLibraryPicks(request);
+  if (!items.length) return {
+    text: 'Your library is empty, so I do not have a library-only recommendation yet.',
+    cards: [], cardReasons: [], cardStyle: 'playlist'
+  };
+  const reasons = items.map(item => groundedReason(item, request));
+  return {
+    text: `Here are my best matches from your library:\n\n${items.map((item, index) =>
+      `${index + 1}. ${item.title} — ${reasons[index]}`).join('\n')}`,
+    cards: items.map(item => item.id),
+    cardReasons: reasons,
+    cardStyle: 'playlist'
+  };
 }
 
 function continueSummary() {
@@ -191,11 +298,11 @@ function setChatStatus(text) {
 }
 
 // POST to /api/concierge and read Ollama's NDJSON stream, firing onToken per delta.
-async function streamOllama(messages, temperature, onToken) {
+async function streamOllama(messages, temperature, onToken, format) {
   const res = await fetch('/api/concierge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: state.settings.model || 'llama3.2', messages, temperature })
+    body: JSON.stringify({ model: state.settings.model || 'llama3.2', messages, temperature, format })
   });
   if (!res.ok || !res.body) {
     let msg = `HTTP ${res.status}`;
@@ -234,8 +341,8 @@ export async function sendChat(text) {
   const outsideMode = state.settings.allowOutsideSuggestions;
   const wantsRecommendation = isRecommendationIntent(text);
 
-  // Everything goes to the model now — no scripted interception. Any library title it
-  // names still becomes a clickable play-card (see chatCardsForMessage / titleCardsHtml).
+  // Outside mode streams the model naturally. Library-only recommendation requests use
+  // validated catalogue numbers so an invented/outside title can never reach the UI.
   let webCtx = '';
   const canSearch = outsideMode && state.settings.useBraveSearch && state.settings.braveKey;
   if (canSearch && (wantsWebContext(text) || wantsRecommendation)) {
@@ -246,6 +353,7 @@ export async function sendChat(text) {
 
   try {
     const context = conciergeSnapshot();
+    const groundedRecommendation = !outsideMode && wantsRecommendation;
     const prompt = `You are the Linkflix Concierge — a warm, sharp, opinionated film and
 TV buff living inside the user's personal streaming app. Talk naturally and freely: chat,
 riff, share real opinions, trivia and hot takes, answer whatever they ask. You don't have
@@ -257,28 +365,48 @@ ${context.library}
 Continuing / partway through: ${context.continueWatching}
 Already watched: ${context.watched}
 
-A few things that make you more useful (not rigid rules):
+RECOMMENDATION SCOPE — THIS IS A HARD OUTPUT RULE:
+- ${outsideMode
+    ? `Outside suggestions are ON. You may recommend titles outside the catalogue, but clearly say they are not in the user's library.`
+    : `Library-only mode is ON. If the user asks what to watch, asks for suggestions, a list,
+  a playlist, alternatives, or recommendations, EVERY suggested title must be copied from
+  the numbered library catalogue above. Never add an outside alternative, classic, honourable
+  mention, comparison title, or invented sequel. If the library has too few matches, say so.`}
+
+Other behaviour:
 - When you mention a title that's in the library above, write it EXACTLY as listed — the
   app turns those into clickable "play" buttons for them.
 - For "what should I watch" moments, lean toward what they own, and feel free to nudge
   them to finish something they've started.
-- ${outsideMode
-    ? `Outside suggestions are ON, so you're also welcome to bring up great films and shows they don't have yet — just make it clear those aren't in their library.`
-    : `They're in library-focused mode, so keep actual recommendations to titles they own — but you're still free to discuss, compare, and talk about any movie or show under the sun.`}
 ${canSearch && webCtx ? `\nFresh web context you can use if handy:\n${webCtx}\n` : ''}
 Keep it conversational and human. Plain text — skip markdown formatting.`;
 
+    const groundedContract = groundedRecommendation ? `
+
+For this recommendation request, return ONLY valid JSON in exactly this shape:
+{"recommendations":[{"catalogNumber":12},{"catalogNumber":47}]}
+Use between 1 and 5 catalogue numbers from the numbered library above. A catalogue number
+is the number at the start of a library line. Do not return titles, prose, markdown, reasons,
+or any number that is not present in the catalogue. Re-check every number before answering.` : '';
+
     const messages = [
-      { role: 'system', content: prompt },
+      { role: 'system', content: prompt + groundedContract },
       ...chatLog.slice(-12).map(m => ({ role: m.role, content: m.text }))
     ];
     chatLog.push({ role: 'assistant', text: '' });
     const idx = chatLog.length - 1;
-    await streamOllama(messages, outsideMode ? 0.85 : 0.7, delta => {
-      $('#chat-status')?.remove();
-      chatLog[idx].text += delta;
-      renderChat();
-    });
+    if (groundedRecommendation) {
+      let raw = '';
+      setChatStatus('checking your library…');
+      await streamOllama(messages, 0.2, delta => { raw += delta; }, 'json');
+      Object.assign(chatLog[idx], groundedRecommendationMessage(text, raw));
+    } else {
+      await streamOllama(messages, outsideMode ? 0.85 : 0.6, delta => {
+        $('#chat-status')?.remove();
+        chatLog[idx].text += delta;
+        renderChat();
+      });
+    }
     $('#chat-status')?.remove();
     if (!chatLog[idx].text) chatLog[idx].text = '(no reply)';
   } catch (err) {

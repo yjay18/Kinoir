@@ -8,5 +8,8 @@ contextBridge.exposeInMainWorld('linkflix', {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
   playNative: (path, title, playlist, pip) => ipcRenderer.invoke('play-native', { path, title, playlist, pip }),
   openExternalFile: (path) => ipcRenderer.invoke('open-external-file', { path }),
-  buildPreviewFromFile: (id, path) => ipcRenderer.invoke('build-preview-from-file', { id, path })
+  buildPreviewFromFile: (id, path) => ipcRenderer.invoke('build-preview-from-file', { id, path }),
+  getComponentStatus: () => ipcRenderer.invoke('get-component-status'),
+  startOllama: () => ipcRenderer.invoke('start-ollama'),
+  openComponentPage: (component) => ipcRenderer.invoke('open-component-page', component)
 });
