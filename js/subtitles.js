@@ -8,6 +8,10 @@ import { $, $$, esc, toast } from './dom.js';
 import { openAddModal } from './modals.js';
 import { state, store, saveLibrary } from './state.js';
 import { render } from './views.js';
+import {
+  beginManualPreviewProgress, finishManualPreviewProgress, loadPreviewManifest,
+  previewServiceReady
+} from './previews.js';
 
 /* ---------- the ⋯ menu ---------- */
 let menuEl = null;
@@ -28,6 +32,7 @@ export function openMoreMenu(anchor, item) {
   menuEl = document.createElement('div');
   menuEl.className = 'more-menu glass';
   menuEl.innerHTML = `
+    <button data-menu-preview>Generate preview from file…</button>
     <button data-menu-subs>Generate subtitles…</button>
     <button data-menu-edit>Edit</button>
     <button data-menu-delete style="color: #ff8a90;">Delete</button>`;
@@ -36,7 +41,8 @@ export function openMoreMenu(anchor, item) {
   menuEl.style.left = Math.min(r.left, innerWidth - 250) + 'px';
   menuEl.style.top = (r.bottom + 8) + 'px';
   menuEl.addEventListener('click', e => {
-    if (e.target.closest('[data-menu-subs]')) { closeMenu(); openSubtitleCenter(item); }
+    if (e.target.closest('[data-menu-preview]')) { closeMenu(); choosePreviewSource(item); }
+    else if (e.target.closest('[data-menu-subs]')) { closeMenu(); openSubtitleCenter(item); }
     else if (e.target.closest('[data-menu-edit]')) { closeMenu(); openAddModal(item.id); }
     else if (e.target.closest('[data-menu-delete]')) {
       closeMenu();
@@ -49,6 +55,33 @@ export function openMoreMenu(anchor, item) {
     }
   });
   setTimeout(() => document.addEventListener('click', onDocClick, true), 0);
+}
+
+async function choosePreviewSource(item) {
+  if (!window.linkflix?.pickVideoFile || !window.linkflix?.buildPreviewFromFile) {
+    toast('Generating a preview from Finder needs the desktop app');
+    return;
+  }
+  if (!await previewServiceReady()) {
+    toast('Restart Linkflix once to load the updated preview service');
+    return;
+  }
+  const file = await window.linkflix.pickVideoFile('Choose the first episode for this preview');
+  if (!file) return;
+  toast('Generating preview from the selected episode…');
+  const progress = beginManualPreviewProgress(item.id, item.title);
+  const result = await window.linkflix.buildPreviewFromFile(item.id, file).catch(error =>
+    ({ ok: false, error: String(error.message || error) }));
+  finishManualPreviewProgress(progress, result?.ok);
+  if (!result?.ok) {
+    const needsRestart = /no handler registered/i.test(result?.error || '');
+    toast(needsRestart ? 'Restart Linkflix once to enable preview generation'
+      : `Couldn’t generate preview: ${result?.error || 'unknown error'}`);
+    return;
+  }
+  await loadPreviewManifest();
+  render();
+  toast('Preview generated ✓');
 }
 
 /* ---------- subtitle picker / progress modal ---------- */

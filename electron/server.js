@@ -31,6 +31,7 @@ const MIME = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.gif': 'image/gif',
+  '.mp4': 'video/mp4',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.txt': 'text/plain; charset=utf-8'
@@ -322,7 +323,12 @@ function handle(staticRoot, dataRoot, req, res) {
       return;
     }
   }
-  // hover teaser clips: serve cached preview / build one on request
+  if (req.method === 'GET' && pathname === '/api/preview/status') {
+    send(res, 200, JSON.stringify({ ok: true, version: 2 }),
+      { 'Content-Type': 'application/json' });
+    return;
+  }
+  // Legacy preview URL. New previews live in the shareable library folder.
   if (req.method === 'GET' || req.method === 'HEAD') {
     const pm = pathname.match(/^\/preview\/([\w-]+)\.mp4$/);
     if (pm) {
@@ -348,7 +354,7 @@ function handle(staticRoot, dataRoot, req, res) {
         if (!file) return send(res, 404, JSON.stringify({ ok: false, error: 'no local file' }),
           { 'Content-Type': 'application/json' });
         await previews.buildPreview(dataRoot, id, file);
-        send(res, 200, JSON.stringify({ ok: true, ready: true }), { 'Content-Type': 'application/json' });
+        send(res, 200, JSON.stringify({ ok: true, ready: true, preview: previews.previewKey(id) }), { 'Content-Type': 'application/json' });
       } catch (e) {
         send(res, 500, JSON.stringify({ ok: false, error: String(e.message || e) }),
           { 'Content-Type': 'application/json' });

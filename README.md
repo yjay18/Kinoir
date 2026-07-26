@@ -47,7 +47,7 @@ Find what you want to watch by searching for concepts or moods (e.g., *"gritty c
 Have a video file without subtitles? Click the `⋯` More Actions button in any movie or show detail page, select **Generate subtitles**, and Linkflix will use your local GPU/CPU to transcribe the audio into a `.vtt` sidecar file next to the video. No audio or transcripts ever leave your Mac.
 
 ### 🎥 Native Local Playback & HLS Web Player
-- **Native Player (macOS)**: Plays local files (including `.mkv` and `.avi`) natively in your preferred media engine (bundled **IINA.app**, system IINA, mpv, or VLC), preserving filesystem access and supporting Picture-in-Picture.
+- **Native Player (macOS)**: Opens every local file (including `.mp4`, `.mkv`, and `.avi`) in the bundled **IINA.app**, bypassing QuickTime and macOS file-association defaults.
 - **HLS Web Player**: For local network streaming (Safari, mobile devices, etc.), the backend dynamically transcodes/remuxes files on-the-fly to Apple-friendly HLS.
 
 ### 📁 Media Folder Auto-Scanning
@@ -57,7 +57,7 @@ Point Linkflix to your media folders. The scanner automatically detects movie an
 Chat with your personal local library helper. Ollama enriches your titles with 5 deterministic, descriptive tags, allowing you to ask the concierge for highly grounded recommendations, custom local-library playlists, or smart collections.
 
 ### 🎭 Hover Teaser Previews
-Hover over any card in your library to see a silent, looping preview clip containing 5 random 3-second segments stitched dynamically from the local video file.
+Hover over any card in your library to see a looping preview clip containing four short moments, with source audio when available, stitched dynamically from the local video file. Cached mappings load immediately, while missing previews are warmed in a small startup batch and then generated on demand, one at a time. Preview clips live in `library/previews/` and their shareable `library/previews.jsonl` manifest maps each title id to its clip. This is separate from personal `watch.json`. Use a title's `⋯` menu and **Generate preview from file…** to choose a show's first episode in Finder.
 
 ---
 
@@ -65,4 +65,4 @@ Hover over any card in your library to see a silent, looping preview clip contai
 
 - **Backend**: Built in Node.js (Electron Main Process & custom HTTP API server) to handle dialogs, HLS transcoding, metadata lookup, and subprocess execution (ffmpeg/whisper).
 - **Frontend**: Plain HTML, Vanilla CSS, and modern ES6 JavaScript modules. No frameworks, build steps, or webpack bundlers.
-- **Storage**: Browser `localStorage` is used for responsive UI state, backed up automatically to disk at `library/library.json` and `library/watch.json`.
+- **Storage**: Browser `localStorage` is used for responsive UI state, backed up automatically to disk at `library/library.json` and `library/watch.json`; shareable preview clips and their mappings live separately in `library/previews/` and `library/previews.jsonl`.

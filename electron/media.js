@@ -8,7 +8,9 @@ const fsp = require('fs/promises');
 const os = require('os');
 const path = require('path');
 
-const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
+// The bundled binary is resolved during Electron startup, after this module is
+// loaded. Read the environment at execution time so previews and playback use it.
+const ffmpegPath = () => process.env.FFMPEG_PATH || 'ffmpeg';
 const TEXT_SUB_CODECS = /^(subrip|srt|ass|ssa|mov_text|webvtt|text)$/i;
 
 // key ("id/s/e") -> { dir, proc, done, created, subs }
@@ -37,7 +39,7 @@ function killAllSessions() {
 /* Probe with `ffmpeg -i` (ffprobe may be absent) and scrape stderr. */
 function probe(file) {
   return new Promise(resolve => {
-    const proc = spawn(FFMPEG, ['-hide_banner', '-i', file]);
+    const proc = spawn(ffmpegPath(), ['-hide_banner', '-i', file]);
     let err = '';
     proc.stderr.on('data', d => (err += d));
     proc.on('error', () => resolve({ ok: false, error: 'ffmpeg not found' }));
@@ -102,7 +104,7 @@ async function ensureHls(key, file, info) {
     '-hls_segment_filename', path.join(dir, 'seg_%04d.m4s'),
     path.join(dir, 'index.m3u8')
   ];
-  const proc = spawn(FFMPEG, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(ffmpegPath(), args, { stdio: ['ignore', 'ignore', 'pipe'] });
   const sess = { dir, proc, done: false, created: Date.now(), stderr: '' };
   proc.stderr.on('data', d => { sess.stderr += d; });
   proc.on('close', () => { sess.done = true; });
@@ -124,7 +126,7 @@ async function subtitleVtt(key, file, subIndex) {
   const out = path.join(dir, `sub_${subIndex}.vtt`);
   try { const st = await fsp.stat(out); if (st.size > 0) return out; } catch { /* build it */ }
   await new Promise((resolve, reject) => {
-    const proc = spawn(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', file,
+    const proc = spawn(ffmpegPath(), ['-hide_banner', '-loglevel', 'error', '-i', file,
       '-map', `0:${subIndex}`, '-c:s', 'webvtt', out]);
     proc.on('error', reject);
     proc.on('close', code => code === 0 ? resolve() : reject(new Error('subtitle extract failed')));

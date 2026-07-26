@@ -10,7 +10,7 @@ import { focusFirst } from './nav.js';
 import { openAddModal, loadFromFolder, importLibraryFile } from './modals.js';
 import { initLocalPlayer, destroyLocalPlayer } from './player.js';
 import { openMoreMenu } from './subtitles.js';
-import { hasPreview, previewUrl } from './previews.js';
+import { hasPreview, invalidatePreview, previewUrl, requestPreview } from './previews.js';
 
 function localPathFor(item, s = 0, e = 0) {
   if (!item) return '';
@@ -33,6 +33,22 @@ export function render() {
   }
   bindView();
   focusFirst();
+  if (state.view.name === 'detail') {
+    const item = state.library.find(i => i.id === state.view.id);
+    if (item && !hasPreview(item.id)) {
+      requestPreview(item).then(ready => {
+        if (ready && state.view.name === 'detail' && state.view.id === item.id) render();
+      });
+    }
+    const video = $('.hero-video-bg', main);
+    if (item && video) video.addEventListener('error', () => {
+      invalidatePreview(item.id);
+      video.remove();
+      requestPreview(item).then(ready => {
+        if (ready && state.view.name === 'detail' && state.view.id === item.id) render();
+      });
+    }, { once: true });
+  }
 }
 
 /* ---------- Home ---------- */
@@ -257,12 +273,9 @@ function detailHtml(id) {
   const dates = formatShowDates(item);
   const inContinueWatching = state.watchLog.some(w => w.itemId === item.id);
 
-  const topBar = `<div class="detail-top-bar">
+  const head = `<section class="hero hero-detail glass">
     <button class="detail-back focusable" data-action="back" title="Back" aria-label="Back">Back <kbd>⎋</kbd></button>
-  </div>`;
-
-  const head = `${topBar}<section class="hero glass">
-    ${hasPreview(item.id) ? `<video class="hero-video-bg" src="${previewUrl(item.id)}" autoplay loop playsinline oncanplay="this.classList.add('on'); this.nextElementSibling.classList.add('off')"></video>` : ''}
+    ${hasPreview(item.id) ? `<video class="hero-video-bg" src="${previewUrl(item.id)}" autoplay loop playsinline onplaying="this.classList.add('on'); this.nextElementSibling.classList.add('off')" onerror="this.remove()"></video>` : ''}
     <div class="hero-backdrop" style="background:${coverSrc(item)
       ? `url('${esc(coverSrc(item))}') center/cover` : gradientFor(item.title)}"></div>
     ${hasPreview(item.id) ? `<div class="hero-video-overlay"></div>` : ''}
@@ -285,7 +298,7 @@ function detailHtml(id) {
         ${item.type === 'movie'
           ? `<button class="pill-btn accent focusable" data-play="${item.id}">Play</button>` : ''}
         ${item.type === 'movie' && item.localPath && window.linkflix?.openExternalFile
-          ? `<button class="pill-btn focusable" data-open-external="${item.id}">Open in default player</button>` : ''}
+          ? `<button class="pill-btn focusable" data-open-external="${item.id}">Open in IINA</button>` : ''}
         ${inContinueWatching
           ? `<button class="pill-btn focusable" data-clear-watch="${item.id}">Remove from Continue Watching</button>` : ''}
         <button class="pill-btn focusable" data-more="${item.id}" title="More actions"
@@ -394,15 +407,11 @@ function episodePlayable(item, s, e) {
   return !!(ep && (ep.localPath || driveFileId(ep.link)));
 }
 
-// A local file in the desktop app plays natively (IINA) only if it's a format
-// Chromium doesn't support well (like MKV or AVI). Otherwise, we use the web player
-// which natively supports macOS PiP.
+// Every local file in the desktop app goes to IINA. This intentionally includes
+// MP4/MOV files so macOS/Chromium never chooses QuickTime or the in-app player.
 function useNativePlayer(item, s = 0, e = 0) {
   const p = localPathFor(item, s, e);
-  if (!p || !window.linkflix?.playNative) return false;
-  const ext = p.split('.').pop().toLowerCase();
-  const webFormats = ['mp4', 'webm', 'ogg', 'mov', 'm4v'];
-  return !webFormats.includes(ext);
+  return Boolean(p && window.linkflix?.playNative);
 }
 
 function playLocalNative(item, s = 0, e = 0) {
@@ -488,7 +497,7 @@ function bindView() {
       const p = localPathFor(item, 0, 0);
       if (p && window.linkflix?.openExternalFile) {
         window.linkflix.openExternalFile(p);
-        toast('Opening in your default player…');
+        toast('Opening in IINA…');
       }
       return;
     }

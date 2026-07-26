@@ -25,11 +25,11 @@ import {
 import { focusFirst } from './nav.js';
 import { startTaggingWorker } from './taxonomy.js';
 import { startSemanticWorker, rankLibrary } from './semantic.js';
-import { startPreviewWorker } from './previews.js';
+import { loadPreviewManifest, startPreviewWorker } from './previews.js';
 import './hover.js';               // side-effect: hover-preview listeners
 
 /* ---------- persistent controls ---------- */
-$('#brand').addEventListener('click', () => { state.view = { name: 'home' }; render(); });
+$('#brand').addEventListener('click', () => resetSearchAndGoHome());
 $('#btn-add').addEventListener('click', () => openAddModal());
 $('#btn-chat').addEventListener('click', () => toggleChat());
 $('#btn-scope').addEventListener('click', () =>
@@ -55,8 +55,21 @@ $('#chat-form').addEventListener('submit', e => {
 });
 
 let searchTimer;
+let searchRevision = 0;
+
+function resetSearchAndGoHome() {
+  clearTimeout(searchTimer);
+  searchRevision += 1;
+  $('#search-input').value = '';
+  state.searchQuery = '';
+  state.semanticResults = null;
+  state.view = { name: 'home' };
+  render();
+}
+
 $('#search-input').addEventListener('input', e => {
   const q = e.target.value.trim();
+  const revision = ++searchRevision;
   state.searchQuery = q;
   state.semanticResults = null;
   if (state.view.name !== 'home') state.view = { name: 'home' };
@@ -68,7 +81,9 @@ $('#search-input').addEventListener('input', e => {
   clearTimeout(searchTimer);
   if (q.split(' ').length > 1 || q.length > 5) {
     searchTimer = setTimeout(async () => {
-      state.semanticResults = await rankLibrary(q);
+      const results = await rankLibrary(q);
+      if (revision !== searchRevision || state.searchQuery !== q) return;
+      state.semanticResults = results;
       const active = document.activeElement;
       render();
       if (active) active.focus();
@@ -94,13 +109,17 @@ if (cleaned.length !== state.library.length) { state.library = cleaned; saveLibr
 
 syncSuggestionScopeUi();
 render();
+loadPreviewManifest().then(() => render());
 if (isAirClient) loadFromFolder(true);             // Air viewer: the Mac's library is the truth
 else if (!state.library.length) loadFromFolder(true);   // pick up a shared library/ folder if present
 else saveLibrary();                                // recreate/update library/library.json on launch
 
-// Background AI loops (not on Air viewers — phones shouldn't build tags/embeddings)
-if (!isAirClient) setTimeout(() => {
-  startTaggingWorker();
-  startSemanticWorker();
+// Background AI loops (not on Air viewers — phones shouldn't build tags/embeddings).
+// Previews start first so a title opened immediately can begin preparing its teaser.
+if (!isAirClient) {
   startPreviewWorker();
-}, 2000);
+  setTimeout(() => {
+    startTaggingWorker();
+    startSemanticWorker();
+  }, 2000);
+}

@@ -9,6 +9,7 @@ import { searchTVMaze, tvmazeEpisodes, wikiLookup, withTimeout } from './metadat
 import { isPlayable } from './taxonomy.js';
 import { gradientFor } from './covers.js';
 import { render } from './views.js';
+import { findLibraryTitleMatch } from './titlematch.js';
 
 const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 // strip Wikipedia disambiguation, e.g. "Interstellar (film)" -> "Interstellar"
@@ -119,13 +120,15 @@ export async function openScanFlow() {
   const movies = [];
   for (const cand of newMovies) {
     tick(cand.title);
-    movies.push({ cand, info: await enrichMovie(cand) });
+    const existing = findLibraryTitleMatch(state.library, 'movie', cand.title);
+    movies.push({ cand, existing, info: existing ? null : await enrichMovie(cand) });
     done++;
   }
   const shows = [];
   for (const group of newShows) {
     tick(group.show);
-    shows.push({ group, enriched: await enrichShow(group) });
+    const existing = findLibraryTitleMatch(state.library, 'show', group.show);
+    shows.push({ group, existing, enriched: existing ? null : await enrichShow(group) });
     done++;
   }
 
@@ -147,17 +150,19 @@ function renderReview() {
   const review = [];
 
   movies.forEach((m, i) => {
-    const row = { kind: 'movie', i, title: cleanWiki(m.info?.title) || m.cand.title,
-      image: m.info?.image || '', sub: m.info ? 'Film' : `Film · ${m.cand.rawName}`, matched: !!m.info };
-    (m.info ? matched : review).push(row);
+    const row = { kind: 'movie', i, title: m.existing?.title || cleanWiki(m.info?.title) || m.cand.title,
+      image: m.existing?.cover || m.info?.image || '',
+      sub: m.existing ? `Existing film · ${m.cand.rawName}` : (m.info ? 'Film' : `Film · ${m.cand.rawName}`),
+      matched: !!(m.existing || m.info) };
+    (row.matched ? matched : review).push(row);
   });
   shows.forEach((s, i) => {
     const n = s.group.episodes.length;
-    const row = { kind: 'show', i, title: s.enriched?.info?.title || s.group.show,
-      image: s.enriched?.info?.image || '',
-      sub: `${s.enriched ? 'Series' : 'Series · ' + s.group.episodes[0].rawName} · ${n} episode${n === 1 ? '' : 's'}`,
-      matched: !!s.enriched };
-    (s.enriched ? matched : review).push(row);
+    const row = { kind: 'show', i, title: s.existing?.title || s.enriched?.info?.title || s.group.show,
+      image: s.existing?.cover || s.enriched?.info?.image || '',
+      sub: `${s.existing ? 'Existing series' : (s.enriched ? 'Series' : 'Series · ' + s.group.episodes[0].rawName)} · ${n} episode${n === 1 ? '' : 's'}`,
+      matched: !!(s.existing || s.enriched) };
+    (row.matched ? matched : review).push(row);
   });
 
   const rowHtml = r => `<label class="scan-row">
@@ -218,7 +223,8 @@ function placeEpisode(show, file) {
 function applyMovie(m, title) {
   const info = m.info;
   const finalTitle = title || cleanWiki(info?.title) || m.cand.title;
-  const existing = state.library.find(i => i.type === 'movie' && norm(i.title) === norm(finalTitle));
+  const existing = (m.existing && state.library.find(i => i.id === m.existing.id)) ||
+    findLibraryTitleMatch(state.library, 'movie', finalTitle);
   if (existing) {
     existing.localPath = m.cand.path;
     if (info?.image && !existing.cover) existing.cover = info.image;
@@ -235,8 +241,9 @@ function applyMovie(m, title) {
 function applyShow(s, title) {
   const info = s.enriched?.info;
   const finalTitle = title || info?.title || s.group.show;
-  let show = state.library.find(i => i.type === 'show' &&
-    ((info && String(i.tvmazeId) === String(info.id)) || norm(i.title) === norm(finalTitle)));
+  let show = (s.existing && state.library.find(i => i.id === s.existing.id)) ||
+    state.library.find(i => i.type === 'show' && info && String(i.tvmazeId) === String(info.id)) ||
+    findLibraryTitleMatch(state.library, 'show', finalTitle);
   if (!show) {
     show = {
       id: uid(), type: 'show', title: finalTitle,

@@ -23,7 +23,7 @@
   "build": {
     "appId": "com.yuuv.linkflix",
     "productName": "Linkflix",
-    "asar": false,
+    "asar": true,
     "directories": {
       "output": "dist",
       "buildResources": "build"

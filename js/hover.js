@@ -4,7 +4,7 @@ import { state } from './state.js';
 import { coverSrc, gradientFor } from './covers.js';
 import { formatDate } from './format.js';
 import { playItem, playEpisode, render } from './views.js';
-import { hasPreview, previewUrl } from './previews.js';
+import { hasPreview, invalidatePreview, previewUrl, requestPreview } from './previews.js';
 
 const pop = document.createElement('div');
 pop.id = 'hover-pop';
@@ -32,6 +32,7 @@ function popEpisodeList(item) {
 }
 
 function showPop(card) {
+  if (!card?.isConnected || state.view.name !== 'home') return;
   const id = card.dataset.open;
   const item = state.library.find(i => i.id === id);
   if (!item) return;
@@ -43,8 +44,8 @@ function showPop(card) {
       ${src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : ''}
       <div class="cover-fallback">${esc((item.title || '?')[0].toUpperCase())}</div>
       ${hasPreview(id) ? `<video class="pop-teaser" src="${previewUrl(id)}"
-        autoplay loop muted playsinline
-        onerror="this.remove()" oncanplay="this.classList.add('on')"></video>` : ''}
+        autoplay loop playsinline
+        onplaying="this.classList.add('on')"></video>` : ''}
     </div>
     <div class="pop-body">
       <div class="pop-title">${esc(item.title)}</div>
@@ -61,6 +62,17 @@ function showPop(card) {
   pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + 'px';
   pop.style.top = Math.max(84, r.top - 46) + 'px';
   pop.hidden = false;
+  const teaser = $('.pop-teaser', pop);
+  if (teaser) teaser.addEventListener('error', () => {
+    invalidatePreview(id);
+    teaser.remove();
+    requestPreview(item, { opportunistic: true }).then(ok => {
+      if (ok && popCardId === id && card.isConnected) showPop(card);
+    });
+  }, { once: true });
+  else requestPreview(item, { opportunistic: true }).then(ok => {
+    if (ok && popCardId === id && card.isConnected) showPop(card);
+  });
   requestAnimationFrame(() => {           // keep it on screen
     const pr = pop.getBoundingClientRect();
     if (pr.bottom > innerHeight - 12)
@@ -68,7 +80,17 @@ function showPop(card) {
   });
 }
 
-export function hidePop() { pop.hidden = true; popCardId = null; }
+export function hidePop() {
+  clearTimeout(popShowTimer);
+  clearTimeout(popHideTimer);
+  popShowTimer = null;
+  popHideTimer = null;
+  const teaser = $('.pop-teaser', pop);
+  if (teaser) { teaser.pause(); teaser.removeAttribute('src'); }
+  pop.replaceChildren();
+  pop.hidden = true;
+  popCardId = null;
+}
 
 $('#view').addEventListener('mouseover', e => {
   const card = e.target.closest('.card[data-open]');
@@ -96,3 +118,5 @@ pop.addEventListener('click', e => {
   else if (ep) { hidePop(); playEpisode(id, +ep.dataset.s, +ep.dataset.e); }
 });
 window.addEventListener('scroll', hidePop, { passive: true });
+window.addEventListener('blur', hidePop);
+document.addEventListener('visibilitychange', () => { if (document.hidden) hidePop(); });

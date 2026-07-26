@@ -9,6 +9,7 @@ const fs = require('fs');
 const { startServer } = require('./server');
 const media = require('./media');
 const nativeplay = require('./nativeplay');
+const previews = require('./previews');
 
 const STATIC_ROOT = path.join(__dirname, '..');   // app code: index.html, css/, js/
 // Writable data (library.json, watch.json, Media/). In the packaged app the bundle is
@@ -33,9 +34,9 @@ function resolveFfmpeg() {
   } catch { /* fall back to `ffmpeg` on PATH */ }
 }
 
-ipcMain.handle('pick-video-file', async () => {
+ipcMain.handle('pick-video-file', async (_e, { title } = {}) => {
   const r = await dialog.showOpenDialog(mainWindow, {
-    title: 'Choose a video file',
+    title: title || 'Choose a video file',
     properties: ['openFile'],
     filters: [{ name: 'Video', extensions: ['mkv', 'mp4', 'm4v', 'mov', 'avi', 'webm', 'ts', 'wmv'] }]
   });
@@ -59,6 +60,16 @@ ipcMain.handle('play-native', (_e, { path: fp, title, playlist, pip } = {}) => {
 ipcMain.handle('open-external-file', (_e, { path: fp } = {}) => {
   try { nativeplay.openExternal(fp); return { ok: true }; }
   catch (err) { return { ok: false, error: String(err.message || err) }; }
+});
+
+// Finder is the trusted path-selection surface for a custom teaser source.
+ipcMain.handle('build-preview-from-file', async (_e, { id, path: fp } = {}) => {
+  try {
+    if (!/^[\w-]+$/.test(String(id || ''))) throw new Error('invalid title id');
+    if (!fp || !fs.statSync(fp).isFile()) throw new Error('video file not found');
+    await previews.buildPreview(DATA_ROOT, id, fp);
+    return { ok: true, preview: previews.previewKey(id) };
+  } catch (err) { return { ok: false, error: String(err.message || err) }; }
 });
 
 let mainWindow = null;

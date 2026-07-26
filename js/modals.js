@@ -8,6 +8,7 @@ import { render, removeFromContinueWatching } from './views.js';
 import { syncSuggestionScopeUi } from './concierge.js';
 import { focusFirst } from './nav.js';
 import { openScanFlow } from './scan.js';
+import { loadPreviewManifest } from './previews.js';
 
 export function closeModal() { $('#modal-root').innerHTML = ''; focusFirst(); }
 export function modalOpen() { return !!$('#modal-root').firstElementChild; }
@@ -582,6 +583,7 @@ export async function loadFromFolder(silent) {
     if (!Array.isArray(data.library)) throw 0;
     state.library = data.library;
     saveLibrary();
+    await loadPreviewManifest();
     try {   // watch history is a separate, optional file — personal by default
       const w = await fetch('library/watch.json', { cache: 'no-store' });
       if (w.ok) {
