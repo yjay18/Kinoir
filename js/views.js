@@ -1,5 +1,5 @@
 /* ================= Views & playback navigation ================= */
-import { state, store, saveLibrary, sampleItems } from './state.js';
+import { state, store, saveLibrary, sampleItems, isAirClient } from './state.js';
 import { $, $$, esc, toast } from './dom.js';
 import { coverSrc, gradientFor, coverHtml } from './covers.js';
 import { formatDate, formatShowDates, episodeMeta } from './format.js';
@@ -11,16 +11,56 @@ import { openAddModal, loadFromFolder, importLibraryFile } from './modals.js';
 import { initLocalPlayer, destroyLocalPlayer } from './player.js';
 import { openMoreMenu } from './subtitles.js';
 import { hasPreview, invalidatePreview, previewUrl, requestPreview } from './previews.js';
-import { scheduleLocalAvailabilityRefresh } from './local-media.js';
+import {
+  hasLocalDownload, hasMissingLocalFile, hasMissingLocalMedia,
+  scheduleLocalAvailabilityRefresh
+} from './local-media.js';
 
 function localPathFor(item, s = 0, e = 0) {
   if (!item) return '';
+  if (item.type === 'movie' && hasMissingLocalMedia(item.id) && !hasLocalDownload(item.id)) return '';
+  if (item.type === 'show' && hasMissingLocalFile(`${item.id}/${s}/${e}`)) return '';
   return item.type === 'movie'
-    ? (item.localPath || '')
-    : (item.seasons?.[s]?.episodes?.[e]?.localPath || '');
+    ? (item.localPath || (item.localAvailable ? '__kinoir_air__' : ''))
+    : (item.seasons?.[s]?.episodes?.[e]?.localPath ||
+      (item.seasons?.[s]?.episodes?.[e]?.localAvailable ? '__kinoir_air__' : ''));
 }
 
+function hasDriveSource(item) {
+  return Boolean(driveFileId(item?.link) || (item?.seasons || []).some(season =>
+    (season.episodes || []).some(episode => driveFileId(episode.link))));
+}
+
+function shelfMetrics(row) {
+  const card = row.querySelector('.card');
+  const gap = Number.parseFloat(getComputedStyle(row).gap) || 0;
+  const cardStep = (card?.getBoundingClientRect().width || row.clientWidth) + gap;
+  return { cardStep, cardsPerPage: Math.max(1, Math.floor((row.clientWidth + gap) / cardStep)) };
+}
+
+function alignShelf(row) {
+  const maxLeft = Math.max(0, row.scrollWidth - row.clientWidth);
+  if (!maxLeft) return;
+  const { cardStep } = shelfMetrics(row);
+  const target = row.scrollLeft > maxLeft - cardStep / 2
+    ? maxLeft
+    : Math.round(row.scrollLeft / cardStep) * cardStep;
+  row.scrollTo({ left: Math.min(maxLeft, Math.max(0, target)), behavior: 'auto' });
+}
+
+let shelfResizeTimer = 0;
+window.addEventListener('resize', () => {
+  window.clearTimeout(shelfResizeTimer);
+  shelfResizeTimer = window.setTimeout(() => $$('#view .row').forEach(alignShelf), 120);
+});
+
 export function render() {
+  // The header search field survives a view render.  Keep its native focus
+  // while filtering so the debounced keyword/semantic updates do not move the
+  // caret to the first card (most noticeable when pressing Backspace).
+  const activeElement = document.activeElement;
+  const preserveTextFocus = activeElement?.isConnected &&
+    activeElement.matches?.('input, textarea, select, [contenteditable="true"]');
   hidePop();
   destroyLocalPlayer();
   const main = $('#view');
@@ -33,9 +73,9 @@ export function render() {
       initLocalPlayer(id, s, e);
   }
   bindView();
-  focusFirst();
+  if (!preserveTextFocus) focusFirst();
   scheduleLocalAvailabilityRefresh();
-  if (state.view.name === 'detail') {
+  if (state.view.name === 'detail' && !state.settings.reduceEffects) {
     const item = state.library.find(i => i.id === state.view.id);
     if (item && !hasPreview(item.id)) {
       requestPreview(item).then(ready => {
@@ -76,11 +116,12 @@ function cardHtml(item, sub) {
 
 function rowHtml(title, items, subFn) {
   if (!items.length) return '';
+  const visibleItems = items.slice(0, 60);
   return `<section class="row-section">
     <div class="row-title">${esc(title)}<span class="count">${items.length}</span></div>
     <div class="row-wrap">
       <button class="row-arrow left" data-scroll="-1" title="Scroll left">‹</button>
-      <div class="row" data-navrow>${items.map(i => cardHtml(i, subFn && subFn(i))).join('')}</div>
+      <div class="row" data-navrow>${visibleItems.map(i => cardHtml(i, subFn && subFn(i))).join('')}</div>
       <button class="row-arrow right" data-scroll="1" title="Scroll right">›</button>
     </div>
   </section>`;
@@ -139,7 +180,9 @@ function heroHtml(item) {
       <h1>${esc(item.title)}</h1>
       <p class="hero-sub">${esc(item.subtitle || 'From your personal collection.')}</p>
       <div class="hero-actions" data-navrow>
-        <button class="pill-btn accent focusable" data-play-featured="${item.id}">${resume ? 'Resume' : 'Play'}</button>
+        <button class="pill-btn accent focusable" data-play-featured="${item.id}"
+          ${item.type === 'movie' && item.localPath && !driveFileId(item.link)
+            ? `data-local-play="${item.id}"` : ''}>${resume ? 'Resume' : 'Play'}</button>
         <button class="pill-btn focusable" data-open="${item.id}">Details</button>
       </div>
     </div>
@@ -201,7 +244,7 @@ function homeHtml() {
   if (!state.library.length) {
     return `<div class="empty glass">
       <div class="big">🎬</div>
-      <h2>Welcome to Linkflix</h2>
+      <h2>Welcome to Kinoir</h2>
       <p>Your personal cinema. Add a movie or show with a Drive link —
          or load a shared library.</p>
       <div class="hero-actions" data-navrow>
@@ -274,13 +317,16 @@ function detailHtml(id) {
   if (!item) { state.view = { name: 'home' }; return homeHtml(); }
   const dates = formatShowDates(item);
   const inContinueWatching = state.watchLog.some(w => w.itemId === item.id);
+  const previewEnabled = !state.settings.reduceEffects && hasPreview(item.id);
+  const hasDrive = hasDriveSource(item);
 
   const head = `<section class="hero hero-detail glass">
     <button class="detail-back focusable" data-action="back" title="Back" aria-label="Back">Back <kbd>⎋</kbd></button>
-    ${hasPreview(item.id) ? `<video class="hero-video-bg" src="${previewUrl(item.id)}" autoplay loop playsinline onplaying="this.classList.add('on'); this.nextElementSibling.classList.add('off')" onerror="this.remove()"></video>` : ''}
+    ${previewEnabled ? `<video class="hero-video-bg" src="${previewUrl(item.id)}"
+      autoplay loop playsinline data-preview-reveal data-dim-next data-remove-on-error></video>` : ''}
     <div class="hero-backdrop" style="background:${coverSrc(item)
       ? `url('${esc(coverSrc(item))}') center/cover` : gradientFor(item.title)}"></div>
-    ${hasPreview(item.id) ? `<div class="hero-video-overlay"></div>` : ''}
+    ${previewEnabled ? `<div class="hero-video-overlay"></div>` : ''}
     <button class="hero-mark ${item.watched ? 'on' : ''} focusable" data-toggle-watched="${item.id}"
       title="${item.watched ? 'Watched — click to unmark' : 'Mark as watched'}"
       aria-label="${item.watched ? 'Watched — click to unmark' : 'Mark as watched'}">
@@ -293,18 +339,24 @@ function detailHtml(id) {
         ${item.genre ? `<span class="badge">${esc(item.genre)}</span>` : ''}
         ${dates ? `<span class="badge">${esc(dates)}</span>` : ''}
         ${item.watched ? '<span class="badge watched">Watched</span>' : ''}
+        <span class="badge media-missing" data-missing-local="${esc(item.id)}"
+          data-has-drive="${hasDrive}" hidden>File unavailable</span>
       </div>
       <h1>${esc(item.title)}</h1>
       <p class="hero-sub">${esc(item.subtitle || '')}</p>
       <div class="hero-actions" data-navrow>
         ${item.type === 'movie'
-          ? `<button class="pill-btn accent focusable" data-play="${item.id}">Play</button>` : ''}
-        ${item.type === 'movie' && item.localPath && window.linkflix?.openExternalFile
+          ? `<button class="pill-btn accent focusable" data-play="${item.id}"
+              ${item.localPath && !driveFileId(item.link) ? `data-local-play="${item.id}"` : ''}>Play</button>` : ''}
+        ${item.type === 'movie' && item.localPath && window.kinoir?.openExternalFile
           ? `<button class="pill-btn focusable" data-open-external="${item.id}">Open in IINA</button>` : ''}
         ${inContinueWatching
           ? `<button class="pill-btn focusable" data-clear-watch="${item.id}">Remove from Continue Watching</button>` : ''}
-        <button class="pill-btn focusable" data-more="${item.id}" title="More actions"
-          aria-label="More actions">⋯</button>
+        ${isAirClient ? '' : `<button class="pill-btn focusable" data-relink="${item.id}"
+          data-missing-local="${item.id}" data-has-drive="${hasDrive}" hidden>
+          ${item.type === 'show' ? 'Review local files' : 'Relink file'}</button>`}
+        ${isAirClient ? '' : `<button class="pill-btn focusable" data-more="${item.id}" title="More actions"
+          aria-label="More actions">⋯</button>`}
       </div>
     </div>
   </section>`;
@@ -334,7 +386,9 @@ function detailHtml(id) {
         <div class="season-title">${esc(season?.name || `Season ${selectedSeason + 1}`)}</div>
         <div class="ep-list" data-navrow>
           ${(season?.episodes || []).map((ep, ei) => `
-            <button class="ep-btn focusable" data-play="${item.id}" data-s="${selectedSeason}" data-e="${ei}">
+            <button class="ep-btn focusable" data-play="${item.id}" data-s="${selectedSeason}" data-e="${ei}"
+              ${(ep.localPath || ep.localAvailable) ? `data-local-file-key="${item.id}/${selectedSeason}/${ei}"
+                data-has-drive="${Boolean(driveFileId(ep.link))}"` : ''}>
               <span class="ep-num">${ei + 1}</span>
               <span class="ep-info">
                 <div class="ep-title">${esc(ep.title || `Episode ${ei + 1}`)}</div>
@@ -353,11 +407,10 @@ function detailHtml(id) {
 function playerHtml({ id, s, e }) {
   const item = state.library.find(i => i.id === id);
   if (!item) { state.view = { name: 'home' }; return homeHtml(); }
-  let link = item.link, localPath = item.localPath, sub = 'Movie';
+  let link = item.link, localPath = localPathFor(item, s, e), sub = 'Movie';
   if (item.type === 'show') {
     const ep = item.seasons?.[s]?.episodes?.[e];
     link = ep?.link;
-    localPath = ep?.localPath;
     sub = `S${s + 1} · E${e + 1}${ep?.title ? ' — ' + ep.title : ''}${ep?.airdate ? ` · ${formatDate(ep.airdate)}` : ''}`;
   }
   // log for Continue Watching
@@ -406,14 +459,16 @@ export function removeFromContinueWatching(id) {
 
 function episodePlayable(item, s, e) {
   const ep = item?.seasons?.[s]?.episodes?.[e];
-  return !!(ep && (ep.localPath || driveFileId(ep.link)));
+  const local = ep && (ep.localPath || ep.localAvailable) &&
+    !hasMissingLocalFile(`${item.id}/${s}/${e}`);
+  return !!(ep && (local || driveFileId(ep.link)));
 }
 
 // Every local file in the desktop app goes to IINA. This intentionally includes
 // MP4/MOV files so macOS/Chromium never chooses QuickTime or the in-app player.
 function useNativePlayer(item, s = 0, e = 0) {
   const p = localPathFor(item, s, e);
-  return Boolean(p && window.linkflix?.playNative);
+  return Boolean(p && window.kinoir?.playNative);
 }
 
 function playLocalNative(item, s = 0, e = 0) {
@@ -426,7 +481,7 @@ function playLocalNative(item, s = 0, e = 0) {
     const eps = item.seasons?.[s]?.episodes || [];
     playlist = eps.slice(e + 1).map(ep => ep.localPath).filter(Boolean);
   }
-  window.linkflix.playNative(p, label, playlist, Boolean(state.settings.alwaysPip)).then(r => {
+  window.kinoir.playNative(p, label, playlist, Boolean(state.settings.alwaysPip)).then(r => {
     if (r?.ok) {
       const name = { mpv: 'mpv', iina: 'IINA', vlc: 'VLC', system: 'your player' }[r.player] || 'your player';
       toast(`Playing in ${name}`);
@@ -458,6 +513,10 @@ export function playItem(id) {                 // resume where you left off, els
   if (item.type === 'show') {
     const canResume = log && episodePlayable(item, log.s, log.e);
     playEpisode(id, canResume ? log.s : fallback.s, canResume ? log.e : fallback.e);
+    return;
+  }
+  if (!localPathFor(item, 0, 0) && !driveFileId(item.link)) {
+    toast('That movie file is unavailable — relink it to play.');
     return;
   }
   if (useNativePlayer(item, 0, 0)) { playLocalNative(item, 0, 0); return; }
@@ -497,8 +556,8 @@ function bindView() {
     if (openExt) {
       const item = state.library.find(i => i.id === openExt.dataset.openExternal);
       const p = localPathFor(item, 0, 0);
-      if (p && window.linkflix?.openExternalFile) {
-        window.linkflix.openExternalFile(p);
+      if (p && window.kinoir?.openExternalFile) {
+        window.kinoir.openExternalFile(p);
         toast('Opening in IINA…');
       }
       return;
@@ -522,6 +581,7 @@ function bindView() {
       const item = state.library.find(i => i.id === markWatched.dataset.toggleWatched);
       if (item) {
         item.watched = !item.watched;
+        if (item.type === 'movie' && item.watched) removeFromContinueWatching(item.id);
         saveLibrary();
         render();
         toast(item.watched ? `Marked “${item.title}” as watched ✓` : `Removed “${item.title}” from watched`);
@@ -547,10 +607,30 @@ function bindView() {
       }
       return;
     }
+    const relink = e.target.closest('[data-relink]');
+    if (relink) { openAddModal(relink.dataset.relink); return; }
     const scroll = e.target.closest('[data-scroll]');
     if (scroll) {
       const row = $('.row', scroll.closest('.row-wrap'));
-      row.scrollBy({ left: +scroll.dataset.scroll * row.clientWidth * 0.8, behavior: 'smooth' });
+      const { cardStep, cardsPerPage } = shelfMetrics(row);
+      const direction = Math.sign(+scroll.dataset.scroll);
+      const maxLeft = Math.max(0, row.scrollWidth - row.clientWidth);
+      if (!maxLeft) return;
+
+      // Wrap at either edge so the controls never lead to a dead end.
+      if (direction < 0 && row.scrollLeft <= cardStep / 2) {
+        row.scrollTo({ left: maxLeft, behavior: 'smooth' });
+        return;
+      }
+      if (direction > 0 && row.scrollLeft >= maxLeft - cardStep / 2) {
+        row.scrollTo({ left: 0, behavior: 'smooth' });
+        return;
+      }
+
+      row.scrollBy({
+        left: direction * cardStep * (cardsPerPage + 1),
+        behavior: 'smooth'
+      });
       return;
     }
     const action = e.target.closest('[data-action]');

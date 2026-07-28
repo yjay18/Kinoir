@@ -8,6 +8,7 @@ import { braveContext, wantsWebContext } from './metadata.js';
 import { focusFirst } from './nav.js';
 
 let chatLog = store.get('chat', []);          // [{role, text}]
+const braveConfigured = () => Boolean(state.settings.braveKeyConfigured || state.settings.braveKey);
 
 const saveChat = () => { chatLog = chatLog.slice(-40); store.set('chat', chatLog); };
 
@@ -26,7 +27,7 @@ export function syncSuggestionScopeUi() {
   $('#chat-scope-outside')?.classList.toggle('active', outside);
   const sub = $('#chat-sub');
   if (sub) sub.textContent = outside
-    ? (state.settings.useBraveSearch && state.settings.braveKey
+    ? (state.settings.useBraveSearch && braveConfigured()
       ? 'Outside suggestions · Brave context on'
       : 'Outside suggestions · model knowledge')
     : 'Runs locally via Ollama · library-only';
@@ -42,7 +43,7 @@ export function setOutsideSuggestions(enabled) {
   syncSuggestionScopeUi();
   if (!$('#chat-panel')?.hidden) renderChat();
   toast(state.settings.allowOutsideSuggestions
-    ? (state.settings.useBraveSearch && state.settings.braveKey
+    ? (state.settings.useBraveSearch && braveConfigured()
       ? 'Outside suggestions on — Brave context enabled'
       : 'Outside suggestions on — using model knowledge')
     : 'Library-only suggestions on');
@@ -68,7 +69,7 @@ export function renderChat() {
   box.innerHTML = `<div class="msg assistant">Hi! I'm your concierge — I run locally on your
 Mac through Ollama (${esc(state.settings.model || 'llama3.2')}). Ask me anything about films
 and TV, or just chat. ${outside
-  ? `Outside suggestions are <b>on</b>, so I can point you to great stuff beyond your library too${state.settings.useBraveSearch && state.settings.braveKey ? ', with live Brave search when it helps' : ''}.`
+  ? `Outside suggestions are <b>on</b>, so I can point you to great stuff beyond your library too${state.settings.useBraveSearch && braveConfigured() ? ', with live Brave search when it helps' : ''}.`
   : `I'm in <b>library-only</b> mode — every recommendation will come from a title you own.`}\n\nTop icons: ⌂ library-only · ◎ outside suggestions. Press ⟳ to refresh my snapshot of your library.</div>`;
     return;
   }
@@ -344,7 +345,7 @@ export async function sendChat(text) {
   // Outside mode streams the model naturally. Library-only recommendation requests use
   // validated catalogue numbers so an invented/outside title can never reach the UI.
   let webCtx = '';
-  const canSearch = outsideMode && state.settings.useBraveSearch && state.settings.braveKey;
+  const canSearch = outsideMode && state.settings.useBraveSearch && braveConfigured();
   if (canSearch && (wantsWebContext(text) || wantsRecommendation)) {
     setChatStatus('checking Brave Search…');
     try { webCtx = await braveContext(text); } catch { /* search is optional context */ }
@@ -354,7 +355,7 @@ export async function sendChat(text) {
   try {
     const context = conciergeSnapshot();
     const groundedRecommendation = !outsideMode && wantsRecommendation;
-    const prompt = `You are the Linkflix Concierge — a warm, sharp, opinionated film and
+    const prompt = `You are the Kinoir Concierge — a warm, sharp, opinionated film and
 TV buff living inside the user's personal streaming app. Talk naturally and freely: chat,
 riff, share real opinions, trivia and hot takes, answer whatever they ask. You don't have
 to recommend something every time — only when it actually fits the conversation.

@@ -117,7 +117,7 @@ function generate(packsRoot, resourcesDir, key, videoPath) {
 
     // 1. rip audio -> 16 kHz mono wav (what whisper.cpp expects)
     job.state = 'extracting-audio'; job.pct = 0;
-    const wav = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), 'linkflix-sub-')), 'audio.wav');
+    const wav = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), 'kinoir-sub-')), 'audio.wav');
     await run(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', videoPath,
       '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', '-y', wav]);
 
@@ -145,7 +145,7 @@ async function sidecarVtt(videoPath) {
   if (!side) return null;
   if (side.endsWith('.vtt')) return side;
   if (vttCache.has(side) && fs.existsSync(vttCache.get(side))) return vttCache.get(side);
-  const out = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), 'linkflix-vtt-')), 'sub.vtt');
+  const out = path.join(await fsp.mkdtemp(path.join(os.tmpdir(), 'kinoir-vtt-')), 'sub.vtt');
   await run(FFMPEG, ['-hide_banner', '-loglevel', 'error', '-i', side, '-y', out]);
   vttCache.set(side, out);
   return out;

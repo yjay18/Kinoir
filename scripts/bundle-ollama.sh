@@ -1,17 +1,24 @@
 #!/bin/bash
 set -e
 
-echo "Downloading Ollama macOS binary..."
+echo "Installing the optional Ollama pack..."
 
-BIN_DIR="models/bin"
-mkdir -p "$BIN_DIR"
+DEFAULT_PACKS_ROOT="$HOME/Library/Application Support/Kinoir/packs"
+LEGACY_PACKS_ROOT="$HOME/Library/Application Support/Linkflix/packs"
+if [ -d "$LEGACY_PACKS_ROOT" ] && [ ! -d "$DEFAULT_PACKS_ROOT" ]; then
+  DEFAULT_PACKS_ROOT="$LEGACY_PACKS_ROOT"
+fi
+PACKS_ROOT="${KINOIR_PACKS_ROOT:-${LINKFLIX_PACKS_ROOT:-$DEFAULT_PACKS_ROOT}}"
+TARGET_DIR="$PACKS_ROOT/ollama/current"
+mkdir -p "$(dirname "$TARGET_DIR")"
 
-if [ -d "$BIN_DIR/ollama-mac" ]; then
-    echo "Ollama bundle already exists at $BIN_DIR/ollama-mac."
+if [ -x "$TARGET_DIR/ollama" ]; then
+    echo "Ollama pack already exists at $TARGET_DIR."
     exit 0
 fi
 
 TMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR"' EXIT
 echo "Downloading Ollama-darwin.zip..."
 curl -L -s "https://github.com/ollama/ollama/releases/latest/download/Ollama-darwin.zip" -o "$TMP_DIR/Ollama-darwin.zip"
 
@@ -19,13 +26,10 @@ echo "Unzipping..."
 unzip -q "$TMP_DIR/Ollama-darwin.zip" -d "$TMP_DIR"
 
 echo "Extracting binary and dependencies..."
-rm -rf "$BIN_DIR/ollama-mac"
-mv "$TMP_DIR/Ollama.app/Contents/Resources" "$BIN_DIR/ollama-mac"
-chmod +x "$BIN_DIR/ollama-mac/ollama"
-chmod +x "$BIN_DIR/ollama-mac/llama-server"
+rm -rf "$TARGET_DIR"
+mkdir -p "$TARGET_DIR"
+cp -R "$TMP_DIR/Ollama.app/Contents/Resources/." "$TARGET_DIR/"
+chmod +x "$TARGET_DIR/ollama"
+if [ -f "$TARGET_DIR/llama-server" ]; then chmod +x "$TARGET_DIR/llama-server"; fi
 
-echo "Cleaning up..."
-rm -rf "$TMP_DIR"
-rm -f "$BIN_DIR/ollama-darwin"
-
-echo "Ollama bundled successfully in $BIN_DIR/ollama-mac"
+echo "Ollama pack installed at $TARGET_DIR"

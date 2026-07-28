@@ -1,6 +1,6 @@
 /* ================= Keyboard navigation ================= */
 import { $, $$ } from './dom.js';
-import { state } from './state.js';
+import { state, isAirClient } from './state.js';
 import { render, goBack } from './views.js';
 import { openAddModal, openSettings, modalOpen, closeModal } from './modals.js';
 import { toggleChat } from './concierge.js';
@@ -49,10 +49,10 @@ document.addEventListener('keydown', e => {
     case 'ArrowDown':  e.preventDefault(); moveFocus(0, 1);  break;
     case 'Backspace':  if (state.view.name !== 'home') goBack(); break;
     case '/': e.preventDefault(); $('#search-input').focus(); break;
-    case 'a': case 'A': openAddModal(); break;
+    case 'a': case 'A': if (!isAirClient) openAddModal(); break;
     case 'c': case 'C': toggleChat(); break;
-    case 's': case 'S': openSettings(); break;
+    case 's': case 'S': if (!isAirClient) openSettings(); break;
     case 'h': case 'H': state.view = { name: 'home' }; render(); break;
-    case 'e': case 'E': if (state.view.name === 'detail') openAddModal(state.view.id); break;
+    case 'e': case 'E': if (!isAirClient && state.view.name === 'detail') openAddModal(state.view.id); break;
   }
 });

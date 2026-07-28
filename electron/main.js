@@ -1,9 +1,10 @@
-/* Linkflix — Electron main process (Mac).
+/* Kinoir — Electron main process (Mac).
    Starts the internal HTTP backend, then opens a native window pointed at it.
    External http(s) links (Google Drive) open in the user's default browser. */
 
-const { app, BrowserWindow, shell, Menu, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain, dialog, safeStorage } = require('electron');
 const { spawn } = require('child_process');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { startServer } = require('./server');
@@ -12,17 +13,76 @@ const nativeplay = require('./nativeplay');
 const previews = require('./previews');
 const subtitles = require('./subtitles');
 
+// Keep the development menu and user-data location branded too; packaged builds
+// also receive this name from productName in package.json.
+app.setName('Kinoir');
+
 const STATIC_ROOT = path.join(__dirname, '..');   // app code: index.html, css/, js/
 // Writable data (library.json, watch.json, Media/). In the packaged app the bundle is
-// read-only, so data lives in a visible ~/Movies/Linkflix folder; in dev it's the project
-// root. (Deliberately not ~/Linkflix — on a case-insensitive Mac that collides with the
-// ~/linkflix project directory.)
-const DATA_ROOT = process.env.LINKFLIX_DATA_ROOT
-  ? path.resolve(process.env.LINKFLIX_DATA_ROOT)
-  : (app.isPackaged ? path.join(app.getPath('videos'), 'Linkflix') : STATIC_ROOT);
+// read-only, so data lives in a visible ~/Movies/Kinoir folder; in dev it's the project
+// root. Existing installs keep using ~/Movies/Linkflix in place, without moving or
+// rewriting the user's library.
+const preferredDataRoot = path.join(app.getPath('videos'), 'Kinoir');
+const legacyDataRoot = path.join(app.getPath('videos'), 'Linkflix');
+const packagedDataRoot = !fs.existsSync(preferredDataRoot) && fs.existsSync(legacyDataRoot)
+  ? legacyDataRoot : preferredDataRoot;
+const DATA_ROOT = process.env.KINOIR_DATA_ROOT || process.env.LINKFLIX_DATA_ROOT
+  ? path.resolve(process.env.KINOIR_DATA_ROOT || process.env.LINKFLIX_DATA_ROOT)
+  : (app.isPackaged ? packagedDataRoot : STATIC_ROOT);
 // Optional runtimes and models live outside the application bundle so updates stay
 // small and never remove packs the user chose to install.
-const PACKS_ROOT = path.join(app.getPath('userData'), 'packs');
+const userDataRoot = app.getPath('userData');
+const legacyUserDataRoot = path.join(path.dirname(userDataRoot), 'Linkflix');
+const preferredPacksRoot = path.join(userDataRoot, 'packs');
+const legacyPacksRoot = path.join(legacyUserDataRoot, 'packs');
+const PACKS_ROOT = !fs.existsSync(preferredPacksRoot) && fs.existsSync(legacyPacksRoot)
+  ? legacyPacksRoot : preferredPacksRoot;
+const preferredPrefsPath = path.join(userDataRoot, 'preferences.json');
+const legacyPrefsPath = path.join(legacyUserDataRoot, 'preferences.json');
+const APP_PREFS_PATH = !fs.existsSync(preferredPrefsPath) && fs.existsSync(legacyPrefsPath)
+  ? legacyPrefsPath : preferredPrefsPath;
+const approvedVideoPaths = new Set();
+
+function loadMainPreferences() {
+  try { return JSON.parse(fs.readFileSync(APP_PREFS_PATH, 'utf8')); }
+  catch { return {}; }
+}
+
+function saveMainPreferences(prefs) {
+  try {
+    fs.mkdirSync(path.dirname(APP_PREFS_PATH), { recursive: true });
+    const tmp = `${APP_PREFS_PATH}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(prefs, null, 2) + '\n', 'utf8');
+    fs.renameSync(tmp, APP_PREFS_PATH);
+  } catch { /* the session still works even if preferences cannot persist */ }
+}
+
+function readBraveKey() {
+  try {
+    if (!mainPreferences.braveKeyEncrypted || !safeStorage.isEncryptionAvailable()) return '';
+    return safeStorage.decryptString(Buffer.from(mainPreferences.braveKeyEncrypted, 'base64'));
+  } catch { return ''; }
+}
+
+function storeBraveKey(value) {
+  const key = String(value || '').trim();
+  if (!key) delete mainPreferences.braveKeyEncrypted;
+  else {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Encrypted storage is unavailable');
+    mainPreferences.braveKeyEncrypted = safeStorage.encryptString(key).toString('base64');
+  }
+  saveMainPreferences(mainPreferences);
+}
+
+const mainPreferences = loadMainPreferences();
+const serverRuntime = {
+  packsRoot: PACKS_ROOT,
+  resourcesDir: process.resourcesPath,
+  air: {
+    enabled: Boolean(mainPreferences.airEnabled),
+    token: crypto.randomBytes(24).toString('base64url')
+  }
+};
 
 function prepareDataDir() {
   try {
@@ -46,7 +106,10 @@ ipcMain.handle('pick-video-file', async (_e, { title } = {}) => {
     properties: ['openFile'],
     filters: [{ name: 'Video', extensions: ['mkv', 'mp4', 'm4v', 'mov', 'avi', 'webm', 'ts', 'wmv'] }]
   });
-  return r.canceled ? null : r.filePaths[0];
+  if (r.canceled) return null;
+  const selected = path.resolve(r.filePaths[0]);
+  approvedVideoPaths.add(selected);
+  return selected;
 });
 
 ipcMain.handle('pick-folder', async () => {
@@ -58,13 +121,35 @@ ipcMain.handle('pick-folder', async () => {
 });
 
 // Native playback of a local file (mpv / IINA / VLC / system), plays MKV/AVI/anything.
-ipcMain.handle('play-native', (_e, { path: fp, title, playlist, pip } = {}) => {
-  try { return { ok: true, player: nativeplay.playNative(fp, process.resourcesPath, PACKS_ROOT, title, playlist, pip) }; }
+async function isApprovedLibraryVideo(fp) {
+  if (!fp || !path.isAbsolute(fp)) return false;
+  const resolved = path.resolve(fp);
+  if (approvedVideoPaths.has(resolved)) return true;
+  try {
+    const library = JSON.parse(fs.readFileSync(path.join(DATA_ROOT, 'library', 'library.json'), 'utf8')).library || [];
+    return library.some(item => item.localPath && path.resolve(item.localPath) === resolved ||
+      (item.seasons || []).some(season => (season.episodes || []).some(episode =>
+        episode.localPath && path.resolve(episode.localPath) === resolved)));
+  } catch { return false; }
+}
+
+ipcMain.handle('play-native', async (_e, { path: fp, title, playlist, pip } = {}) => {
+  try {
+    if (!await isApprovedLibraryVideo(fp)) throw new Error('file is not part of the saved library');
+    const safePlaylist = [];
+    for (const entry of Array.isArray(playlist) ? playlist : [])
+      if (await isApprovedLibraryVideo(entry)) safePlaylist.push(entry);
+    return { ok: true, player: nativeplay.playNative(fp, process.resourcesPath, PACKS_ROOT, title, safePlaylist, pip) };
+  }
   catch (err) { return { ok: false, error: String(err.message || err) }; }
 });
 // Option 3: open in the user's default app for that file.
-ipcMain.handle('open-external-file', (_e, { path: fp } = {}) => {
-  try { nativeplay.openExternal(fp, process.resourcesPath, PACKS_ROOT); return { ok: true }; }
+ipcMain.handle('open-external-file', async (_e, { path: fp } = {}) => {
+  try {
+    if (!await isApprovedLibraryVideo(fp)) throw new Error('file is not part of the saved library');
+    nativeplay.openExternal(fp, process.resourcesPath, PACKS_ROOT);
+    return { ok: true };
+  }
   catch (err) { return { ok: false, error: String(err.message || err) }; }
 });
 
@@ -72,6 +157,7 @@ ipcMain.handle('open-external-file', (_e, { path: fp } = {}) => {
 ipcMain.handle('build-preview-from-file', async (_e, { id, path: fp } = {}) => {
   try {
     if (!/^[\w-]+$/.test(String(id || ''))) throw new Error('invalid title id');
+    if (!await isApprovedLibraryVideo(fp)) throw new Error('choose this video through Kinoir first');
     if (!fp || !fs.statSync(fp).isFile()) throw new Error('video file not found');
     await previews.buildPreview(DATA_ROOT, id, fp);
     return { ok: true, preview: previews.previewKey(id) };
@@ -85,11 +171,11 @@ async function createWindow() {
   if (!serverInfo) {
     serverInfo = await startServer(
       STATIC_ROOT,
-      Number(process.env.LINKFLIX_PORT) || 4174,
+      Number(process.env.KINOIR_PORT || process.env.LINKFLIX_PORT) || 4174,
       DATA_ROOT,
-      { packsRoot: PACKS_ROOT, resourcesDir: process.resourcesPath }
+      serverRuntime
     );
-    console.log(`[linkflix] app=${STATIC_ROOT} data=${DATA_ROOT} on http://127.0.0.1:${serverInfo.port}`);
+    console.log(`[kinoir] app=${STATIC_ROOT} data=${DATA_ROOT} on http://127.0.0.1:${serverInfo.port}`);
   }
 
   mainWindow = new BrowserWindow({
@@ -98,7 +184,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#05060b',
-    title: 'Linkflix',
+    title: 'Kinoir',
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -196,13 +282,13 @@ async function startOllama() {
 async function startOllamaOnce() {
   // Reuse a system/user Ollama service if one is already listening.
   if (await ollamaReady()) {
-    console.log('[linkflix] using the Ollama service already running on 127.0.0.1:11434');
+    console.log('[kinoir] using the Ollama service already running on 127.0.0.1:11434');
     return true;
   }
 
   const found = findOllamaBinary();
   if (!found) {
-    console.log('[linkflix] Ollama is optional and is not installed');
+    console.log('[kinoir] Ollama is optional and is not installed');
     return false;
   }
   const ollamaBin = found.bin;
@@ -226,20 +312,20 @@ async function startOllamaOnce() {
     }
 
     ollamaProcess.on('error', err => {
-      console.error(`[linkflix] failed to start Ollama: ${err.message || err}`);
+      console.error(`[kinoir] failed to start Ollama: ${err.message || err}`);
     });
     ollamaProcess.on('exit', (code, signal) => {
       if (code && code !== 0)
-        console.error(`[linkflix] Ollama exited with code ${code}${signal ? ` (${signal})` : ''}; log: ${ollamaLogPath}`);
+        console.error(`[kinoir] Ollama exited with code ${code}${signal ? ` (${signal})` : ''}; log: ${ollamaLogPath}`);
       ollamaProcess = null;
     });
 
     const ready = await waitForOllama();
-    if (ready) console.log(`[linkflix] Ollama ready via ${ollamaBin}`);
-    else console.error(`[linkflix] Ollama did not become ready; log: ${ollamaLogPath}`);
+    if (ready) console.log(`[kinoir] Ollama ready via ${ollamaBin}`);
+    else console.error(`[kinoir] Ollama did not become ready; log: ${ollamaLogPath}`);
     return ready;
   } catch (err) {
-    console.error(`[linkflix] could not launch Ollama: ${err.message || err}`);
+    console.error(`[kinoir] could not launch Ollama: ${err.message || err}`);
     return false;
   }
 }
@@ -262,7 +348,7 @@ async function componentStatus() {
     ollama: {
       state: ollamaIsReady ? 'ready' : (ollama ? (ollamaStarting ? 'starting' : 'installed') : 'missing'),
       source: ollamaIsReady && !ollama ? 'Running service' : (ollama?.source || ''),
-      detail: ollamaIsReady ? 'Ready for Concierge' : (ollama ? 'Installed; Linkflix can start it' : 'Optional local AI')
+      detail: ollamaIsReady ? 'Ready for Concierge' : (ollama ? 'Installed; Kinoir can start it' : 'Optional local AI')
     },
     iina: {
       state: player ? 'ready' : 'missing',
@@ -284,6 +370,26 @@ ipcMain.handle('start-ollama', async () => {
   const ok = await startOllama();
   return { ok, components: await componentStatus() };
 });
+ipcMain.handle('pull-ollama-model', async (_event, model) => {
+  const name = String(model || '').trim();
+  if (!/^[A-Za-z0-9._:/-]{1,120}$/.test(name)) return { ok: false, error: 'Invalid model name' };
+  if (!await startOllama()) return { ok: false, error: 'Ollama is not available' };
+  const found = findOllamaBinary();
+  if (!found) return { ok: false, error: 'Ollama is not installed' };
+  return new Promise(resolve => {
+    const child = spawn(found.bin, ['pull', name], {
+      cwd: path.dirname(found.bin),
+      env: { ...process.env, OLLAMA_HOST: '127.0.0.1:11434' },
+      stdio: ['ignore', 'ignore', 'pipe']
+    });
+    let errorText = '';
+    child.stderr.on('data', chunk => { errorText = (errorText + chunk).slice(-1000); });
+    child.on('error', error => resolve({ ok: false, error: String(error.message || error) }));
+    child.on('exit', code => resolve(code === 0
+      ? { ok: true }
+      : { ok: false, error: errorText.trim() || `Ollama exited with code ${code}` }));
+  });
+});
 ipcMain.handle('open-component-page', async (_event, component) => {
   const pages = {
     ollama: 'https://ollama.com/download/mac',
@@ -293,6 +399,108 @@ ipcMain.handle('open-component-page', async (_event, component) => {
   const url = pages[component];
   if (!url) return { ok: false };
   await shell.openExternal(url);
+  return { ok: true };
+});
+
+function networkAddress() {
+  const interfaces = require('os').networkInterfaces();
+  const candidates = [];
+  for (const [name, list] of Object.entries(interfaces))
+    for (const iface of list || [])
+      if (iface.family === 'IPv4' && !iface.internal)
+        candidates.push({ name, address: iface.address });
+  const isPrivate = address => /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(address);
+  candidates.sort((a, b) => (isPrivate(b.address) - isPrivate(a.address)) ||
+    (/^en/.test(b.name) - /^en/.test(a.name)));
+  return candidates[0]?.address || '127.0.0.1';
+}
+
+function airStatus() {
+  const ip = networkAddress();
+  const port = serverInfo?.port || Number(process.env.KINOIR_PORT || process.env.LINKFLIX_PORT) || 4174;
+  const baseUrl = ip === '127.0.0.1' ? '' : `http://${ip}:${port}`;
+  return {
+    enabled: serverRuntime.air.enabled,
+    available: Boolean(baseUrl),
+    url: baseUrl,
+    pairUrl: serverRuntime.air.enabled && baseUrl
+      ? `${baseUrl}/pair/${serverRuntime.air.token}` : ''
+  };
+}
+
+ipcMain.handle('get-air-status', () => airStatus());
+ipcMain.handle('set-air-enabled', (_event, enabled) => {
+  const next = Boolean(enabled);
+  if (next && !serverRuntime.air.enabled)
+    serverRuntime.air.token = crypto.randomBytes(24).toString('base64url');
+  serverRuntime.air.enabled = next;
+  mainPreferences.airEnabled = next;
+  saveMainPreferences(mainPreferences);
+  return airStatus();
+});
+
+ipcMain.handle('get-secret-status', () => ({ braveKey: Boolean(readBraveKey()) }));
+ipcMain.handle('set-brave-key', (_event, value) => {
+  try { storeBraveKey(value); return { ok: true, configured: Boolean(readBraveKey()) }; }
+  catch (error) { return { ok: false, error: String(error.message || error) }; }
+});
+ipcMain.handle('brave-search', async (_event, query) => {
+  const key = readBraveKey();
+  const q = String(query || '').trim().slice(0, 500);
+  if (!key || !q) return { ok: false, results: [], error: 'Brave Search is not configured' };
+  try {
+    const response = await fetch('https://api.search.brave.com/res/v1/web/search' +
+      `?q=${encodeURIComponent(q)}&count=5`, {
+        headers: { 'X-Subscription-Token': key, Accept: 'application/json' }
+      });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return { ok: true, results: (data.web?.results || []).slice(0, 5).map(result => ({
+      title: String(result.title || '').slice(0, 300),
+      description: String(result.description || '').slice(0, 1000),
+      url: String(result.url || '').slice(0, 2000)
+    })) };
+  } catch (error) {
+    return { ok: false, results: [], error: String(error.message || error) };
+  }
+});
+
+function versionParts(value) {
+  return String(value || '').replace(/^v/, '').split(/[.-]/).slice(0, 3)
+    .map(part => Number.parseInt(part, 10) || 0);
+}
+
+function isNewerVersion(candidate, current) {
+  const next = versionParts(candidate);
+  const now = versionParts(current);
+  for (let i = 0; i < 3; i++) {
+    if (next[i] !== now[i]) return next[i] > now[i];
+  }
+  return false;
+}
+
+ipcMain.handle('check-for-updates', async () => {
+  const currentVersion = app.getVersion();
+  try {
+    const response = await fetch('https://api.github.com/repos/yjay18/Kinoir/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': `Kinoir/${currentVersion}` }
+    });
+    if (response.status === 404) return { ok: true, currentVersion, updateAvailable: false, noReleases: true };
+    if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+    const release = await response.json();
+    const latestVersion = String(release.tag_name || '').replace(/^v/, '');
+    const url = /^https:\/\/github\.com\/yjay18\/Kinoir\/releases\//.test(release.html_url || '')
+      ? release.html_url : 'https://github.com/yjay18/Kinoir/releases/latest';
+    return { ok: true, currentVersion, latestVersion,
+      updateAvailable: isNewerVersion(latestVersion, currentVersion), url };
+  } catch (error) {
+    return { ok: false, currentVersion, error: String(error.message || error) };
+  }
+});
+ipcMain.handle('open-release-page', async (_event, url) => {
+  const target = /^https:\/\/github\.com\/yjay18\/Kinoir\/releases(?:\/|$)/.test(String(url || ''))
+    ? String(url) : 'https://github.com/yjay18/Kinoir/releases/latest';
+  await shell.openExternal(target);
   return { ok: true };
 });
 

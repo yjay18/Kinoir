@@ -1,68 +1,113 @@
-# Linkflix 🎬
+# Kinoir
 
-Linkflix is a personal, native macOS media organizer and player built with Electron, HTML/CSS, and Vanilla JavaScript. It runs 100% locally on your Mac, featuring zero-dependency local network sharing, local AI assistance, offline subtitle generation, and local semantic search.
+Kinoir is a local-first macOS media library and player built with Electron and
+plain JavaScript. It organises local video files and Google Drive links, keeps
+watch history separate from the shareable library, and can optionally use local
+AI tools for recommendations and subtitles.
 
-No accounts, no external databases, no paid APIs.
+> Project status: public beta.
 
----
+## Highlights
 
-## Getting Started
+- Movies and episodic shows with poster art, metadata, search, and themes.
+- Native playback through an installed copy of IINA, with in-app HLS fallback.
+- Persistent hover previews that survive removal of the source media file.
+- Download and unavailable-file badges based on current filesystem checks.
+- Offline semantic search through a bundled MiniLM model.
+- Library-grounded AI Concierge through an optional local Ollama installation.
+- Optional Whisper subtitle generation.
+- Paired, read-only Kinoir Air streaming on the local network.
 
-### Prerequisites
+The core app does not require an account or paid API. Metadata lookup uses
+TVMaze and Wikipedia when requested. Optional outside-library search uses a
+user-supplied Brave Search key.
 
-To get the full set of local AI features, make sure you have the following installed on your Mac:
+## Run from source
 
-1. **Node.js & npm**: Installed from [nodejs.org](https://nodejs.org/).
-2. **FFmpeg**: Bundled automatically by the app via `ffmpeg-static`, but needed on PATH if you are transcribing subtitles or running software encoding.
-3. **Ollama**: (Optional, for tag enrichment & AI chatbot). Download and run it locally from [ollama.com](https://ollama.com/).
-4. **Whisper**: (Optional, for offline subtitle generation). Install via Homebrew:
-   ```sh
-   brew install whisper-cpp
-   ```
+Requirements:
 
-### Running the App
+- macOS 12 or newer
+- Node.js 22 or newer
 
-Double-click **`Linkflix.command`** in the root of the folder. 
-This starts the local backend server, launches the native Electron application, and opens the player.
-
-*First time only: macOS may block execution. Right-click `Linkflix.command` → Select **Open** → Click **Open**, or run `chmod +x Linkflix.command` in your Terminal.*
-
-Alternatively, run in the Terminal:
 ```sh
 npm install
 npm start
 ```
 
----
+The Electron process starts its own private local server. The old Python and
+double-click browser launchers have been removed so there is only one supported
+runtime path.
 
-## Features
+## Optional components
 
-### 📡 Linkflix Air (Local Network Streaming)
-Open **Settings** inside the app to see a generated QR code and your Mac's local network address. Scan the QR code with your iPhone, iPad, or Smart TV connected to the same Wi-Fi to browse your entire library and stream HLS transcodes directly to your device (complete with native PiP/AirPlay support).
+Kinoir detects installed copies and keeps them outside the core package:
 
-### 🔍 Local Semantic Search
-Find what you want to watch by searching for concepts or moods (e.g., *"gritty cyberpunk crime"* or *"lighthearted space adventure"*). Powered entirely offline by `Transformers.js` using a pre-bundled 22MB ONNX model (`all-MiniLM-L6-v2`) with embedding vectors cached locally in **IndexedDB**.
+- **Ollama** — local AI Concierge. Kinoir starts an installed service when
+  needed; model downloads begin only after explicit confirmation in Settings.
+- **IINA** — native playback for MKV and other formats.
+- **Whisper.cpp** — local subtitle transcription. A compatible model may be
+  downloaded on first use.
 
-### 💬 Local AI Subtitle Generator (Whisper)
-Have a video file without subtitles? Click the `⋯` More Actions button in any movie or show detail page, select **Generate subtitles**, and Linkflix will use your local GPU/CPU to transcribe the audio into a `.vtt` sidecar file next to the video. No audio or transcripts ever leave your Mac.
+The app remains usable when any or all of these components are absent. Open
+Settings → Optional components to see exact status and setup links.
 
-### 🎥 Native Local Playback & HLS Web Player
-- **Native Player (macOS)**: Opens every local file (including `.mp4`, `.mkv`, and `.avi`) in the bundled **IINA.app**, bypassing QuickTime and macOS file-association defaults.
-- **HLS Web Player**: For local network streaming (Safari, mobile devices, etc.), the backend dynamically transcodes/remuxes files on-the-fly to Apple-friendly HLS.
+## Library data
 
-### 📁 Media Folder Auto-Scanning
-Point Linkflix to your media folders. The scanner automatically detects movie and TV series structures, parses messy folder/file names, checks them against TVMaze & Wikipedia metadata, and automatically filters out torrent metadata, `.torrent` files, and junk video files (bloopers, trailers, featurettes, and samples).
+New packaged installs store writable data in `~/Movies/Kinoir`:
 
-### 🏷 Ollama Tagging & AI Concierge
-Chat with your personal local library helper. Ollama enriches your titles with 5 deterministic, descriptive tags, allowing you to ask the concierge for highly grounded recommendations, custom local-library playlists, or smart collections.
+```text
+Kinoir/
+├── Media/
+└── library/
+    ├── library.json
+    ├── watch.json             # optional, personal
+    ├── previews.jsonl         # generated mapping
+    └── previews/              # generated clips
+```
 
-### 🎭 Hover Teaser Previews
-Hover over any card in your library to see a looping preview clip containing four short moments, with source audio when available, stitched dynamically from the local video file. Cached mappings load immediately, while missing previews are warmed in a small startup batch and then generated on demand, one at a time. Preview clips live in `library/previews/` and their shareable `library/previews.jsonl` manifest maps each title id to its clip. This is separate from personal `watch.json`. Use a title's `⋯` menu and **Generate preview from file…** to choose a show's first episode in Finder.
+Existing installations continue using `~/Movies/Linkflix` automatically when
+that legacy folder is present and no Kinoir folder exists. Kinoir does not move,
+rewrite, or delete the old library.
 
----
+Local paths are never included in Kinoir Air library responses. Removing a
+video does not remove its metadata, cover, watch history, or preview. The app
+shows the title as unavailable and offers a relink workflow.
 
-## Technical Architecture
+Do not commit personal `library.json`, `watch.json`, or generated preview files.
 
-- **Backend**: Built in Node.js (Electron Main Process & custom HTTP API server) to handle dialogs, HLS transcoding, metadata lookup, and subprocess execution (ffmpeg/whisper).
-- **Frontend**: Plain HTML, Vanilla CSS, and modern ES6 JavaScript modules. No frameworks, build steps, or webpack bundlers.
-- **Storage**: Browser `localStorage` is used for responsive UI state, backed up automatically to disk at `library/library.json` and `library/watch.json`; shareable preview clips and their mappings live separately in `library/previews/` and `library/previews.jsonl`.
+## Kinoir Air
+
+Air is disabled by default. Enable it in Settings to generate a rotating pairing
+link and QR code. A paired device can browse, stream, and use the Concierge, but
+cannot edit the library, scan folders, generate previews/subtitles, or write data
+to the Mac.
+
+Disable Air when it is not in use. Pairing is intended for trusted private Wi-Fi,
+not direct exposure to the internet.
+
+## Development
+
+```sh
+npm run check
+npm test
+npm run dist           # unsigned local arm64 .app directory
+npm run dist:release   # arm64 + x64 DMG/ZIP release artifacts
+```
+
+Release builds automatically use an available Apple signing identity. Public
+distribution still requires the maintainer's Developer ID certificate and Apple
+notarisation credentials; those credentials must never be committed.
+
+The repository intentionally excludes downloaded models, optional application
+packs, generated previews, personal library data, `node_modules`, and `dist`.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Please use
+GitHub's private security-advisory flow for vulnerabilities rather than filing a
+public issue. Dependency and optional-tool licensing notes are in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+Kinoir source code is available under the MIT License. See [LICENSE](LICENSE).

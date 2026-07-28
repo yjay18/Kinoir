@@ -41,11 +41,10 @@ function showPop(card) {
   const resume = state.watchLog.some(w => w.itemId === id);
   pop.innerHTML = `
     <div class="pop-cover" style="background:${gradientFor(item.title)}">
-      ${src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : ''}
+      ${src ? `<img src="${esc(src)}" alt="" data-remove-on-error>` : ''}
       <div class="cover-fallback">${esc((item.title || '?')[0].toUpperCase())}</div>
-      ${hasPreview(id) ? `<video class="pop-teaser" src="${previewUrl(id)}"
-        autoplay loop playsinline
-        onplaying="this.classList.add('on')"></video>` : ''}
+      ${!state.settings.reduceEffects && hasPreview(id) ? `<video class="pop-teaser" src="${previewUrl(id)}"
+        autoplay loop playsinline data-preview-reveal></video>` : ''}
     </div>
     <div class="pop-body">
       <div class="pop-title">${esc(item.title)}</div>
@@ -70,7 +69,7 @@ function showPop(card) {
       if (ok && popCardId === id && card.isConnected) showPop(card);
     });
   }, { once: true });
-  else requestPreview(item, { opportunistic: true }).then(ok => {
+  else if (!state.settings.reduceEffects) requestPreview(item, { opportunistic: true }).then(ok => {
     if (ok && popCardId === id && card.isConnected) showPop(card);
   });
   requestAnimationFrame(() => {           // keep it on screen

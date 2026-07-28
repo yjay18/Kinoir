@@ -3,21 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Linkflix</title>
-<script>
-  (() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('lf:settings') || '{}');
-      const choices = ['aurora', 'ember', 'ocean', 'graphite', 'daylight', 'system'];
-      const preference = choices.includes(saved.theme) ? saved.theme : 'aurora';
-      const theme = preference === 'system'
-        ? (matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'aurora')
-        : preference;
-      document.documentElement.dataset.themePreference = preference;
-      document.documentElement.dataset.theme = theme;
-    } catch { /* use the Aurora defaults */ }
-  })();
-</script>
+<title>Kinoir</title>
+<script src="js/boot-theme.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -31,8 +18,8 @@
 
   <!-- Top bar -->
   <header class="topbar glass">
-    <button class="brand" id="brand" type="button" title="Home (H)" aria-label="Linkflix home and clear search">
-      <span class="brand-mark">▶</span> Link<span class="brand-accent">flix</span>
+    <button class="brand" id="brand" type="button" title="Home (H)" aria-label="Kinoir home and clear search">
+      <span class="brand-mark">▶</span> Kin<span class="brand-accent">oir</span>
     </button>
     <div class="topbar-search">
       <span class="search-icon">⌕</span>

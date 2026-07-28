@@ -22,6 +22,7 @@ Media/
 
 # bundled mpv (regenerate with scripts/bundle-mpv.sh)
 build/mpv/
+build/iina/
 
 # regenerable AI assets (scripts/bundle-model.sh)
 models/
@@ -29,3 +30,4 @@ js/vendor/ort-wasm*.wasm
 
 # generated hover teasers (runtime cache)
 previews/
+library/previews.jsonl

@@ -8,7 +8,7 @@ import { render, removeFromContinueWatching } from './views.js';
 import { syncSuggestionScopeUi } from './concierge.js';
 import { focusFirst } from './nav.js';
 import { openScanFlow } from './scan.js';
-import { loadPreviewManifest } from './previews.js';
+import { loadPreviewManifest, startPreviewWorker } from './previews.js';
 import { THEMES, applyTheme } from './theme.js';
 
 let onModalClose = null;
@@ -20,6 +20,41 @@ export function closeModal() {
   focusFirst();
 }
 export function modalOpen() { return !!$('#modal-root').firstElementChild; }
+
+/* ---------- First-run welcome ---------- */
+export function openWelcome() {
+  if (modalOpen()) return;
+  $('#modal-root').innerHTML = `
+  <div class="modal-overlay" data-overlay>
+    <div class="modal glass welcome-modal" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+      <div class="modal-head"><h2 id="welcome-title">Welcome to Kinoir</h2></div>
+      <div class="modal-body">
+        <p class="welcome-lead">Your personal media library stays on this Mac. Start with the
+          core app, then enable only the optional tools you want.</p>
+        <div class="welcome-steps">
+          <div><span>1</span><b>Add your library</b><small>Scan a media folder, add a title, or import an existing library file.</small></div>
+          <div><span>2</span><b>Choose optional tools</b><small>Ollama, IINA, and Whisper are detected from installed copies and are never required to browse.</small></div>
+          <div><span>3</span><b>Share deliberately</b><small>Kinoir Air starts off. Turn it on only when you want a paired device to connect.</small></div>
+        </div>
+        <p class="hint">Packaged builds keep library data in <b>Movies/Kinoir</b>. Libraries created before the rename continue working in place. Removing a
+          media file never removes its title, cover, history, or generated preview.</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="pill-btn" id="welcome-later">Explore first</button>
+        <button type="button" class="pill-btn accent" id="welcome-settings">Review setup</button>
+      </div>
+    </div>
+  </div>`;
+  const finish = openSetup => {
+    state.settings.onboardingVersion = 1;
+    saveSettings();
+    closeModal();
+    if (openSetup) openSettings();
+  };
+  $('#welcome-later').addEventListener('click', () => finish(false));
+  $('#welcome-settings').addEventListener('click', () => finish(true));
+  $('#welcome-settings').focus();
+}
 
 /* ---------- Add / Edit ---------- */
 function epEditorHtml(ep = {}) {
@@ -236,12 +271,12 @@ export function openAddModal(editId = null) {
   let localPath = item?.localPath || '';
   const pickBtn = $('#btn-pick-local');
   if (pickBtn) {
-    if (!window.linkflix?.pickVideoFile) {
+    if (!window.kinoir?.pickVideoFile) {
       pickBtn.disabled = true;
       pickBtn.textContent = '📁 Choose file… (desktop app only)';
     }
     pickBtn.addEventListener('click', async () => {
-      const p = await window.linkflix?.pickVideoFile?.();
+      const p = await window.kinoir?.pickVideoFile?.();
       if (p) { localPath = p; $('#local-status').textContent = p; }
     });
   }
@@ -416,22 +451,30 @@ export function openSettings() {
           <div class="component-actions">
             <button type="button" class="pill-btn small" id="btn-components-refresh">⟳ Check again</button>
           </div>
-          <div class="hint">Linkflix uses copies already installed on this Mac. Optional tools are
+          <div class="hint">Kinoir uses copies already installed on this Mac. Optional tools are
             kept outside the core app so updates remain small.</div></div>
         <div class="field"><label>AI Concierge model (runs locally via Ollama)</label>
           <select id="f-model">
             <option value="${esc(state.settings.model)}" selected>${esc(state.settings.model)}</option>
           </select>
+          <div class="component-actions">
+            <button type="button" class="pill-btn small" id="btn-model-install" hidden>Download selected model</button>
+          </div>
           <div class="hint">Any model you've pulled with <code>ollama pull</code> appears here.
-            Default is <b>llama3.2</b>. No API, no account, nothing leaves your Mac.</div></div>
+            Default is <b>llama3.2</b>. Downloads can be several gigabytes; Kinoir only starts
+            one after you press the button. No API account is required.</div></div>
         <div class="field"><label>Concierge</label>
           <label class="check-row"><input type="checkbox" id="f-outside"
             ${state.settings.allowOutsideSuggestions ? 'checked' : ''}> Allow outside suggestions when I turn them on
             <span class="hint" style="margin:0">(top ◎ icon — outside titles are not playable cards)</span></label>
           <label class="check-row"><input type="checkbox" id="f-use-brave"
             ${state.settings.useBraveSearch ? 'checked' : ''}> Yes, use Brave Search when I ask for web context</label>
-          <input id="f-brave" value="${esc(state.settings.braveKey || '')}"
-            placeholder="Brave Search API key (optional)" style="margin-top:8px">
+          <input id="f-brave" type="password" value=""
+            placeholder="Paste a new Brave Search API key" style="margin-top:8px" autocomplete="off">
+          <div class="component-actions">
+            <span class="hint" id="brave-key-status">Checking encrypted key…</span>
+            <button type="button" class="pill-btn small" id="btn-brave-remove" hidden>Remove saved key</button>
+          </div>
           <div class="hint">With ⌂ Library active, recommendations stay inside your saved titles.
             With ◎ Outside active, no Brave key means the model uses its own film/TV knowledge;
             with a Brave key, it can add search context.</div></div>
@@ -439,7 +482,10 @@ export function openSettings() {
           <label class="check-row"><input type="checkbox" id="f-group"
             ${state.settings.groupByGenre ? 'checked' : ''}> Group home rows by genre automatically</label>
           <label class="check-row"><input type="checkbox" id="f-always-pip"
-            ${state.settings.alwaysPip ? 'checked' : ''}> Always play local videos in Picture-in-Picture mode</label></div>
+            ${state.settings.alwaysPip ? 'checked' : ''}> Always play local videos in Picture-in-Picture mode</label>
+          <label class="check-row"><input type="checkbox" id="f-reduce-effects"
+            ${state.settings.reduceEffects ? 'checked' : ''}> Reduce blur, animation, and automatic video previews
+            <span class="hint" style="margin:0">Recommended for older Macs or very large libraries.</span></label></div>
         <div class="field"><label>Local media — auto-classify your files</label>
           <div class="hero-actions">
             <button type="button" class="pill-btn accent" id="btn-scan">⟳ Scan media folders</button>
@@ -458,14 +504,19 @@ export function openSettings() {
           <div class="hint">${state.watchLog.length
             ? `This removes ${state.watchLog.length} saved progress entr${state.watchLog.length === 1 ? 'y' : 'ies'} from this browser.`
             : 'There is nothing in Continue Watching right now.'}</div></div>
-        <div class="field"><label>Linkflix Air (Local Network Streaming)</label>
-          <div class="hero-actions" style="align-items: center; gap: 16px;">
-            <div id="air-qr" style="width: 100px; height: 100px; background: #222; border-radius: 8px; display:flex; align-items:center; justify-content:center; overflow: hidden; padding: 4px;">
-              <span class="hint" style="margin:0">Loading...</span>
+        <div class="field"><label>Kinoir Air (Local Network Streaming)</label>
+          <label class="check-row"><input type="checkbox" id="f-air-enabled" disabled>
+            Enable paired access on this Wi-Fi network</label>
+          <div class="air-share-row">
+            <div id="air-qr" class="air-qr">
+              <span class="hint">Checking…</span>
             </div>
-            <div>
-              <div id="air-url" style="font-weight: 600; font-family: monospace; font-size: 1.1em; color: var(--accent);">http://...</div>
-              <div class="hint" style="margin-top: 4px;">Scan this code with a phone or tablet on the same Wi-Fi network to browse your library and stream video directly to your device (or AirPlay it to a TV).</div>
+            <div class="air-share-copy">
+              <div id="air-url" class="air-url">Checking network…</div>
+              <button type="button" class="pill-btn small" id="btn-air-copy" hidden>Copy pairing link</button>
+              <div class="hint">Air is off by default. When enabled, only devices entering through
+                this rotating pairing link can browse and stream. Paired devices cannot edit,
+                scan, generate subtitles, or change your library.</div>
             </div>
           </div>
         </div>
@@ -480,6 +531,12 @@ export function openSettings() {
             folder and share that folder — e.g. synced via Drive. <b>watch.json</b> holds your
             personal watch history / continue-watching; it's a separate file so sharing it is optional.
             Reload picks up both.</div></div>
+        <div class="field"><label>Updates</label>
+          <div class="hero-actions">
+            <button type="button" class="pill-btn" id="btn-check-updates">Check for updates</button>
+            <button type="button" class="pill-btn" id="btn-open-release" hidden>Open release page</button>
+          </div>
+          <div class="hint" id="update-status">Checks GitHub only when you press the button. Automatic background checks are off.</div></div>
       </div>
       <div class="modal-foot">
         <button type="button" class="pill-btn" data-action="close-modal">Cancel <kbd>⎋</kbd></button>
@@ -499,24 +556,34 @@ export function openSettings() {
     });
   });
 
-  $('#settings-form').addEventListener('submit', e => {
+  $('#settings-form').addEventListener('submit', async e => {
     e.preventDefault();
     const braveKey = $('#f-brave').value.trim();
     const wantsBrave = $('#f-use-brave').checked;
+    let braveKeyConfigured = Boolean(state.settings.braveKeyConfigured || state.settings.braveKey);
+    if (braveKey && window.kinoir?.setBraveKey) {
+      const stored = await window.kinoir.setBraveKey(braveKey);
+      if (!stored?.ok) { toast(stored?.error || 'Could not save the Brave key'); return; }
+      braveKeyConfigured = Boolean(stored.configured);
+    }
     state.settings = { ...state.settings, model: $('#f-model').value,
       theme: previewTheme,
-      braveKey,
+      braveKey: window.kinoir?.setBraveKey ? '' : braveKey,
+      braveKeyConfigured,
       allowOutsideSuggestions: $('#f-outside').checked,
-      useBraveSearch: wantsBrave && Boolean(braveKey),
+      useBraveSearch: wantsBrave && braveKeyConfigured,
       groundToLibrary: true,
       alwaysPip: $('#f-always-pip').checked,
+      reduceEffects: $('#f-reduce-effects').checked,
       groupByGenre: $('#f-group').checked };
     themeCommitted = true;
     applyTheme(previewTheme);
+    document.body.classList.toggle('reduce-effects', Boolean(state.settings.reduceEffects));
+    if (!state.settings.reduceEffects) startPreviewWorker();
     saveSettings();
     syncSuggestionScopeUi();
     closeModal();
-    toast(wantsBrave && !braveKey
+    toast(wantsBrave && !braveKeyConfigured
       ? 'Settings saved — Brave Search is off until you add a key'
       : 'Settings saved ✓');
     render();
@@ -548,12 +615,12 @@ export function openSettings() {
   };
   const refreshComponents = async () => {
     const box = $('#component-list');
-    if (!window.linkflix?.getComponentStatus) {
+    if (!window.kinoir?.getComponentStatus) {
       if (box) box.innerHTML = '<div class="component-loading">Component setup is available in the desktop app.</div>';
       return;
     }
     if (box) box.classList.add('checking');
-    try { renderComponents(await window.linkflix.getComponentStatus()); }
+    try { renderComponents(await window.kinoir.getComponentStatus()); }
     catch { if (box) box.innerHTML = '<div class="component-loading">Could not check components.</div>'; }
     finally { box?.classList.remove('checking'); }
   };
@@ -561,7 +628,7 @@ export function openSettings() {
   $('#component-list').addEventListener('click', async e => {
     const page = e.target.closest('[data-component-page]');
     if (page) {
-      await window.linkflix?.openComponentPage?.(page.dataset.componentPage);
+      await window.kinoir?.openComponentPage?.(page.dataset.componentPage);
       toast('Install it, then return here and press Check again');
       return;
     }
@@ -569,13 +636,37 @@ export function openSettings() {
     if (start) {
       start.disabled = true;
       start.textContent = 'Starting…';
-      const result = await window.linkflix?.startOllama?.();
+      const result = await window.kinoir?.startOllama?.();
       if (result?.components) renderComponents(result.components);
       else await refreshComponents();
       toast(result?.ok ? 'Local AI is ready' : 'Ollama could not be started');
     }
   });
   void refreshComponents();
+
+  const refreshSecretStatus = async () => {
+    const status = $('#brave-key-status');
+    const remove = $('#btn-brave-remove');
+    if (!window.kinoir?.getSecretStatus) {
+      if (status) status.textContent = state.settings.braveKey ? 'Key stored for browser development' : 'No key saved';
+      return;
+    }
+    const secrets = await window.kinoir.getSecretStatus().catch(() => ({}));
+    state.settings.braveKeyConfigured = Boolean(secrets.braveKey);
+    if (status) status.textContent = secrets.braveKey ? 'Encrypted key saved in macOS storage' : 'No key saved';
+    if (remove) remove.hidden = !secrets.braveKey;
+  };
+  $('#btn-brave-remove').addEventListener('click', async () => {
+    const result = await window.kinoir?.setBraveKey?.('');
+    if (!result?.ok) { toast(result?.error || 'Could not remove the key'); return; }
+    state.settings.braveKeyConfigured = false;
+    state.settings.useBraveSearch = false;
+    saveSettings();
+    $('#f-use-brave').checked = false;
+    await refreshSecretStatus();
+    toast('Saved Brave key removed');
+  });
+  void refreshSecretStatus();
 
   $('#btn-folder-reload').addEventListener('click', async () => {
     if (await loadFromFolder(false)) closeModal();
@@ -604,6 +695,26 @@ export function openSettings() {
     toast('watch.json downloaded — sharing it is optional');
   });
   $('#btn-import').addEventListener('click', importLibraryFile);
+  let releaseUrl = '';
+  $('#btn-check-updates').addEventListener('click', async event => {
+    if (!window.kinoir?.checkForUpdates) { toast('Update checks need the desktop app'); return; }
+    event.target.disabled = true;
+    $('#update-status').textContent = 'Checking GitHub releases…';
+    const result = await window.kinoir.checkForUpdates();
+    event.target.disabled = false;
+    if (!result?.ok) {
+      $('#update-status').textContent = `Could not check: ${result?.error || 'unknown error'}`;
+      return;
+    }
+    releaseUrl = result.url || '';
+    $('#btn-open-release').hidden = !releaseUrl;
+    $('#update-status').textContent = result.updateAvailable
+      ? `Version ${result.latestVersion} is available. You have ${result.currentVersion}.`
+      : result.noReleases ? `Version ${result.currentVersion} — no public releases yet.`
+        : `Kinoir ${result.currentVersion} is up to date.`;
+  });
+  $('#btn-open-release').addEventListener('click', () =>
+    window.kinoir?.openReleasePage?.(releaseUrl));
 
   // ---- local media folders ----
   const renderRoots = () => {
@@ -622,8 +733,8 @@ export function openSettings() {
     }
   });
   $('#btn-add-root').addEventListener('click', async () => {
-    if (!window.linkflix?.pickFolder) { toast('Adding folders needs the desktop app'); return; }
-    const dir = await window.linkflix.pickFolder();
+    if (!window.kinoir?.pickFolder) { toast('Adding folders needs the desktop app'); return; }
+    const dir = await window.kinoir.pickFolder();
     if (!dir) return;
     state.settings.mediaRoots = state.settings.mediaRoots || [];
     if (!state.settings.mediaRoots.includes(dir)) {
@@ -641,38 +752,98 @@ export function openSettings() {
       const d = await r.json();
       const models = d.models || [];
       const sel = $('#f-model');
-      if (!sel || !models.length) return;
+      const install = $('#btn-model-install');
+      if (!sel) return;
       const norm = s => String(s).replace(/:latest$/, '');   // llama3.2 == llama3.2:latest
       const cur = state.settings.model;
-      sel.innerHTML = models.map(m =>
+      if (models.length) sel.innerHTML = models.map(m =>
         `<option value="${esc(m)}" ${norm(m) === norm(cur) ? 'selected' : ''}>${esc(m)}</option>`).join('');
-      if (!models.some(m => norm(m) === norm(cur)))
+      else sel.innerHTML = `<option value="${esc(cur)}" selected>${esc(cur)} — not installed (ollama pull)</option>`;
+      if (models.length && !models.some(m => norm(m) === norm(cur)))
         sel.insertAdjacentHTML('afterbegin',
           `<option value="${esc(cur)}" selected>${esc(cur)} — not installed (ollama pull)</option>`);
+      if (install) install.hidden = models.some(m => norm(m) === norm(cur));
     } catch { /* Ollama not reachable — keep the single fallback option */ }
   })();
-
-  // fetch Linkflix Air IP and QR code
-  (async () => {
-    try {
-      const r = await fetch('/api/ip');
-      const d = await r.json();
-      if (d.ip && d.ip !== '127.0.0.1') {
-        const url = `http://${d.ip}:${d.port || 4174}`;
-        $('#air-url').textContent = url;
-        const svgHTML = await fetch(`/api/qr?text=${encodeURIComponent(url)}`).then(r => r.text());
-        $('#air-qr').innerHTML = svgHTML;
-        const svg = $('#air-qr').querySelector('svg');
-        if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; svg.style.display = 'block'; }
-      } else {
-        $('#air-url').textContent = 'Not connected to a local network';
-        $('#air-qr').innerHTML = '<span class="hint">Offline</span>';
-      }
-    } catch {
-       $('#air-url').textContent = 'Server not reachable';
-       $('#air-qr').innerHTML = '<span class="hint">Offline</span>';
+  $('#f-model').addEventListener('change', () => {
+    const button = $('#btn-model-install');
+    if (button) button.hidden = !$('#f-model').selectedOptions[0]?.textContent.includes('not installed');
+  });
+  $('#btn-model-install').addEventListener('click', async event => {
+    if (!window.kinoir?.pullOllamaModel) { toast('Model setup needs the desktop app'); return; }
+    const model = $('#f-model').value;
+    event.target.disabled = true;
+    event.target.textContent = `Downloading ${model}…`;
+    const result = await window.kinoir.pullOllamaModel(model).catch(error =>
+      ({ ok: false, error: String(error.message || error) }));
+    if (result?.ok) {
+      event.target.hidden = true;
+      toast(`${model} is ready`);
+      await refreshComponents();
+    } else {
+      event.target.disabled = false;
+      event.target.textContent = 'Try download again';
+      toast(result?.error || 'Model download failed');
     }
+  });
+
+  // Kinoir Air is managed by Electron so LAN access remains opt-in and paired.
+  let currentAirStatus = null;
+  const renderAirStatus = async status => {
+    currentAirStatus = status;
+    const toggle = $('#f-air-enabled');
+    const qr = $('#air-qr');
+    const label = $('#air-url');
+    const copy = $('#btn-air-copy');
+    if (!toggle || !qr || !label || !copy) return;
+    toggle.disabled = false;
+    toggle.checked = Boolean(status?.enabled);
+    copy.hidden = !status?.pairUrl;
+    if (!status?.available) {
+      label.textContent = 'Not connected to a local network';
+      qr.innerHTML = '<span class="hint">Offline</span>';
+      return;
+    }
+    if (!status.enabled || !status.pairUrl) {
+      label.textContent = 'Air is off';
+      qr.innerHTML = '<span class="air-lock" aria-hidden="true">⌁</span>';
+      return;
+    }
+    label.textContent = status.url;
+    try {
+      const response = await fetch(`/api/qr?text=${encodeURIComponent(status.pairUrl)}`);
+      if (!response.ok) throw new Error('QR unavailable');
+      qr.innerHTML = await response.text();
+      const svg = qr.querySelector('svg');
+      if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; svg.style.display = 'block'; }
+    } catch {
+      qr.innerHTML = '<span class="hint">QR unavailable</span>';
+    }
+  };
+  (async () => {
+    if (!window.kinoir?.getAirStatus) {
+      $('#air-url').textContent = 'Air controls are available in the desktop app';
+      $('#air-qr').innerHTML = '<span class="hint">Desktop only</span>';
+      return;
+    }
+    try { await renderAirStatus(await window.kinoir.getAirStatus()); }
+    catch { $('#air-url').textContent = 'Could not check Air status'; }
   })();
+  $('#f-air-enabled').addEventListener('change', async event => {
+    event.target.disabled = true;
+    try {
+      await renderAirStatus(await window.kinoir.setAirEnabled(event.target.checked));
+      toast(event.target.checked ? 'Kinoir Air enabled — pairing code ready' : 'Kinoir Air disabled');
+    } catch {
+      event.target.checked = !event.target.checked;
+      toast('Could not change Kinoir Air');
+    } finally { event.target.disabled = false; }
+  });
+  $('#btn-air-copy').addEventListener('click', async () => {
+    if (!currentAirStatus?.pairUrl) return;
+    await navigator.clipboard.writeText(currentAirStatus.pairUrl);
+    toast('Pairing link copied');
+  });
 
   $('#f-model').focus();
 }

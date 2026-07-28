@@ -2,7 +2,7 @@
    contextIsolation is on, so the frontend only sees these explicit methods. */
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('linkflix', {
+const kinoir = {
   isElectron: true,
   pickVideoFile: (title) => ipcRenderer.invoke('pick-video-file', { title }),
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
@@ -11,5 +11,17 @@ contextBridge.exposeInMainWorld('linkflix', {
   buildPreviewFromFile: (id, path) => ipcRenderer.invoke('build-preview-from-file', { id, path }),
   getComponentStatus: () => ipcRenderer.invoke('get-component-status'),
   startOllama: () => ipcRenderer.invoke('start-ollama'),
-  openComponentPage: (component) => ipcRenderer.invoke('open-component-page', component)
-});
+  pullOllamaModel: (model) => ipcRenderer.invoke('pull-ollama-model', model),
+  openComponentPage: (component) => ipcRenderer.invoke('open-component-page', component),
+  getAirStatus: () => ipcRenderer.invoke('get-air-status'),
+  setAirEnabled: (enabled) => ipcRenderer.invoke('set-air-enabled', Boolean(enabled)),
+  getSecretStatus: () => ipcRenderer.invoke('get-secret-status'),
+  setBraveKey: (key) => ipcRenderer.invoke('set-brave-key', key),
+  searchBrave: (query) => ipcRenderer.invoke('brave-search', query),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  openReleasePage: (url) => ipcRenderer.invoke('open-release-page', url)
+};
+
+contextBridge.exposeInMainWorld('kinoir', kinoir);
+// Compatibility alias for extensions or cached renderer code from pre-rename builds.
+contextBridge.exposeInMainWorld('linkflix', kinoir);

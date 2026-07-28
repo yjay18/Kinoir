@@ -1,8 +1,15 @@
 #!/bin/bash
-# Fetch and bundle IINA for native MKV playback in Linkflix
+# Install IINA as an optional Kinoir-managed pack.
 set -e
 
 cd "$(dirname "$0")/.."
+DEFAULT_PACKS_ROOT="$HOME/Library/Application Support/Kinoir/packs"
+LEGACY_PACKS_ROOT="$HOME/Library/Application Support/Linkflix/packs"
+if [ -d "$LEGACY_PACKS_ROOT" ] && [ ! -d "$DEFAULT_PACKS_ROOT" ]; then
+  DEFAULT_PACKS_ROOT="$LEGACY_PACKS_ROOT"
+fi
+PACKS_ROOT="${KINOIR_PACKS_ROOT:-${LINKFLIX_PACKS_ROOT:-$DEFAULT_PACKS_ROOT}}"
+TARGET_DIR="$PACKS_ROOT/iina/current"
 
 echo "Fetching latest IINA release info..."
 DOWNLOAD_URL=$(curl -s https://api.github.com/repos/iina/iina/releases/latest | grep browser_download_url | cut -d '"' -f 4 | grep '.dmg$')
@@ -13,8 +20,9 @@ if [ -z "$DOWNLOAD_URL" ]; then
 fi
 
 echo "Downloading IINA from $DOWNLOAD_URL..."
-TMP_DMG="build/IINA_download.dmg"
-mkdir -p build
+TMP_DIR=$(mktemp -d)
+trap 'hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true; rm -rf "$TMP_DIR"' EXIT
+TMP_DMG="$TMP_DIR/IINA_download.dmg"
 curl -L -o "$TMP_DMG" "$DOWNLOAD_URL"
 
 echo "Mounting DMG..."
@@ -22,17 +30,15 @@ MOUNT_POINT=$(hdiutil attach "$TMP_DMG" -nobrowse -noverify -noautoopen | grep /
 
 if [ -z "$MOUNT_POINT" ]; then
   echo "Failed to mount DMG!"
-  rm "$TMP_DMG"
   exit 1
 fi
 
-echo "Copying IINA.app to build/iina/..."
-rm -rf build/iina
-mkdir -p build/iina
-cp -R "$MOUNT_POINT/IINA.app" "build/iina/IINA.app"
+echo "Copying IINA.app to the optional packs folder..."
+rm -rf "$TARGET_DIR"
+mkdir -p "$TARGET_DIR"
+cp -R "$MOUNT_POINT/IINA.app" "$TARGET_DIR/IINA.app"
 
 echo "Unmounting DMG..."
 hdiutil detach "$MOUNT_POINT" -quiet
-rm "$TMP_DMG"
 
-echo "IINA successfully bundled in build/iina/IINA.app ($(du -sh build/iina/IINA.app | cut -f1))"
+echo "IINA pack installed at $TARGET_DIR/IINA.app ($(du -sh "$TARGET_DIR/IINA.app" | cut -f1))"

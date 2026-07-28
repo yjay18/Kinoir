@@ -2,9 +2,17 @@
 import { toast } from './dom.js';
 
 export const store = {
-  get(k, d) { try { return JSON.parse(localStorage.getItem('lf:' + k)) ?? d; } catch { return d; } },
+  get(k, d) {
+    try {
+      const current = localStorage.getItem('kinoir:' + k);
+      const legacy = localStorage.getItem('lf:' + k);
+      const value = JSON.parse(current ?? legacy);
+      if (current === null && legacy !== null) localStorage.setItem('kinoir:' + k, legacy);
+      return value ?? d;
+    } catch { return d; }
+  },
   set(k, v) {
-    try { localStorage.setItem('lf:' + k, JSON.stringify(v)); }
+    try { localStorage.setItem('kinoir:' + k, JSON.stringify(v)); }
     catch { toast('Browser storage is full — change not saved. Try smaller cover images.'); }
   }
 };
@@ -18,11 +26,13 @@ export const state = {
     {
       model: 'llama3.2',
       braveKey: '',
+      braveKeyConfigured: false,
       allowOutsideSuggestions: false,
       useBraveSearch: false,
       groupByGenre: true,
       groundToLibrary: true,
       alwaysPip: false,
+      reduceEffects: false,
       theme: 'aurora',
       mediaRoots: []
     },
@@ -37,7 +47,8 @@ if (!state.settings.model || String(state.settings.model).includes('MLC'))
   state.settings.model = 'llama3.2';
 state.settings.groundToLibrary = true;            // legacy flag; top scope controls outside suggestions
 state.settings.allowOutsideSuggestions = Boolean(state.settings.allowOutsideSuggestions);
-state.settings.useBraveSearch = Boolean(state.settings.useBraveSearch && state.settings.braveKey);
+state.settings.useBraveSearch = Boolean(state.settings.useBraveSearch &&
+  (state.settings.braveKeyConfigured || state.settings.braveKey));
 state.settings.theme = ['aurora', 'ember', 'ocean', 'graphite', 'daylight', 'system']
   .includes(state.settings.theme) ? state.settings.theme : 'aurora';
 
@@ -54,7 +65,7 @@ export function sampleItems(items, limit) {
 
 /* ---- persistence ---- */
 
-/* A Linkflix Air client — a phone/tablet browsing over the LAN rather than the Mac
+/* A Kinoir Air client — a phone/tablet browsing over the LAN rather than the Mac
    itself. Air clients are viewers: they never write library.json back to disk,
    because a device holding a stale localStorage copy would clobber the Mac's
    current library on boot. */
@@ -75,7 +86,7 @@ async function saveLibraryToDisk() {
   } catch {
     if (!diskSaveWarned && location.protocol !== 'file:') {
       diskSaveWarned = true;
-      toast('Disk autosave is off — launch with Linkflix.command/server.py to write library.json');
+      toast('Disk autosave is unavailable — reopen Kinoir to restore library saving');
     }
   }
 }

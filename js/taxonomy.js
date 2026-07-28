@@ -167,11 +167,12 @@ export function itemCategories(item) {
 export function playablePosition(item) {
   if (!item) return null;
   if (item.type === 'movie')
-    return (driveFileId(item.link) || item.localPath) ? { s: 0, e: 0 } : null;
+    return (driveFileId(item.link) || item.localPath || item.localAvailable) ? { s: 0, e: 0 } : null;
   for (let s = 0; s < (item.seasons || []).length; s++) {
     const episodes = item.seasons[s].episodes || [];
     for (let e = 0; e < episodes.length; e++)
-      if (driveFileId(episodes[e].link) || episodes[e].localPath) return { s, e };
+      if (driveFileId(episodes[e].link) || episodes[e].localPath || episodes[e].localAvailable)
+        return { s, e };
   }
   return null;
 }

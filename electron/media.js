@@ -84,7 +84,7 @@ async function ensureHls(key, file, info) {
     return existing;
   }
   sweep();
-  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'linkflix-hls-'));
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'kinoir-hls-'));
   const copyVideo = /^h264$/i.test(info.vcodec || '');
   const vArgs = copyVideo
     ? ['-c:v', 'copy']
@@ -122,7 +122,7 @@ async function ensureHls(key, file, info) {
 /* Extract one embedded text subtitle track to WebVTT (cached in the session dir). */
 async function subtitleVtt(key, file, subIndex) {
   const sess = sessions.get(key);
-  const dir = sess ? sess.dir : await fsp.mkdtemp(path.join(os.tmpdir(), 'linkflix-sub-'));
+  const dir = sess ? sess.dir : await fsp.mkdtemp(path.join(os.tmpdir(), 'kinoir-sub-'));
   const out = path.join(dir, `sub_${subIndex}.vtt`);
   try { const st = await fsp.stat(out); if (st.size > 0) return out; } catch { /* build it */ }
   await new Promise((resolve, reject) => {

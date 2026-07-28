@@ -1,0 +1,39 @@
+name: Bug report
+description: Report reproducible Linkflix behaviour
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach personal library files, API keys, filesystem paths, or copyrighted media.
+  - type: input
+    id: version
+    attributes:
+      label: Linkflix version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and Mac architecture
+      placeholder: macOS 15.5, Apple silicon
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitised logs
+      description: Remove personal titles, paths, tokens, and keys before pasting.

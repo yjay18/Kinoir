@@ -138,7 +138,7 @@ async function ensureOne(item) {
   failed.delete(item.id);
   try {
     if (!await previewServiceReady()) {
-      failureMessages.set(item.id, 'restart Linkflix to load the updated preview service');
+      failureMessages.set(item.id, 'restart Kinoir to load the updated preview service');
       failed.set(item.id, Date.now() + 5000);
       return false;
     }

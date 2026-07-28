@@ -67,7 +67,20 @@ export async function wikiLookup(q) {
 }
 
 async function braveSearch(q) {
-  if (!state.settings.useBraveSearch || !state.settings.braveKey) return null;
+  if (!state.settings.useBraveSearch ||
+      !(state.settings.braveKeyConfigured || state.settings.braveKey)) return null;
+  if (window.kinoir?.searchBrave) {
+    const response = await window.kinoir.searchBrave(q);
+    if (!response?.ok) throw new Error(response?.error || 'Brave search failed');
+    return (response.results || []).map(result => ({
+      title: result.title,
+      desc: stripTags(result.description),
+      url: result.url
+    }));
+  }
+  // Browser-only development fallback. Packaged builds keep the key encrypted
+  // behind the preload bridge and never expose it to page JavaScript.
+  if (!state.settings.braveKey) return null;
   const r = await fetch('https://api.search.brave.com/res/v1/web/search' +
     `?q=${encodeURIComponent(q)}&count=5`,
     { headers: { 'X-Subscription-Token': state.settings.braveKey, Accept: 'application/json' } });

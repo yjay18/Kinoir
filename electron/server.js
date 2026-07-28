@@ -4,6 +4,7 @@
    (Ollama proxy, ffmpeg/HLS streaming, folder scanning) extend. */
 
 const http = require('http');
+const net = require('net');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
@@ -37,11 +38,86 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
+const STATIC_PREFIXES = ['/css/', '/js/', '/models/'];
+const REMOTE_POST_ROUTES = new Set(['/api/concierge']);
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:; media-src 'self' blob: https: http:; frame-src https://drive.google.com https://docs.google.com; connect-src 'self' https://api.tvmaze.com https://en.wikipedia.org https://api.search.brave.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY'
+};
+
 const OLLAMA = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434';
 
 function send(res, status, body, headers = {}) {
-  res.writeHead(status, { 'Cache-Control': 'no-store', ...headers });
+  res.writeHead(status, { ...SECURITY_HEADERS, 'Cache-Control': 'no-store', ...headers });
   res.end(body);
+}
+
+function isLoopbackAddress(address = '') {
+  return address === '127.0.0.1' || address === '::1' ||
+    address === '::ffff:127.0.0.1' || address.startsWith('127.');
+}
+
+function isLocalRequest(req) {
+  return isLoopbackAddress(req.socket?.remoteAddress || '');
+}
+
+function parseCookies(header = '') {
+  return Object.fromEntries(String(header).split(';').map(part => {
+    const at = part.indexOf('=');
+    return at < 0 ? ['', ''] : [part.slice(0, at).trim(), decodeURIComponent(part.slice(at + 1).trim())];
+  }).filter(([key]) => key));
+}
+
+function constantTimeEqual(a, b) {
+  const left = Buffer.from(String(a || ''));
+  const right = Buffer.from(String(b || ''));
+  return left.length === right.length && require('crypto').timingSafeEqual(left, right);
+}
+
+function hasAirSession(req, runtime) {
+  const cookies = parseCookies(req.headers.cookie);
+  const token = cookies.kinoir_air || cookies.linkflix_air;
+  return Boolean(runtime.air?.enabled && token && constantTimeEqual(token, runtime.air.token));
+}
+
+function sameOrigin(req) {
+  const origin = req.headers.origin;
+  if (!origin) return isLocalRequest(req);
+  try {
+    const parsed = new URL(origin);
+    return parsed.protocol === 'http:' && parsed.host === req.headers.host;
+  } catch { return false; }
+}
+
+function trustedHost(req) {
+  const raw = String(req.headers.host || '');
+  const hostname = raw.startsWith('[') ? raw.slice(1, raw.indexOf(']')) : raw.split(':')[0];
+  if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true;
+  if (!net.isIP(hostname)) return false;
+  return isLoopbackAddress(hostname) || /^192\.168\.|^10\.|^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    /^fe80:/i.test(hostname) || /^fd/i.test(hostname);
+}
+
+function sanitizeLibrary(value) {
+  if (Array.isArray(value)) return value.map(sanitizeLibrary);
+  if (!value || typeof value !== 'object') return value;
+  const sanitized = Object.fromEntries(Object.entries(value)
+    .filter(([key]) => key !== 'localPath')
+    .map(([key, child]) => [key, sanitizeLibrary(child)]));
+  if (typeof value.localPath === 'string' && value.localPath) sanitized.localAvailable = true;
+  return sanitized;
+}
+
+function reject(res, status, message, pathname = '') {
+  const api = pathname.startsWith('/api/') || pathname.startsWith('/probe/') ||
+    pathname.startsWith('/hls/') || pathname.startsWith('/subs/');
+  const body = api
+    ? JSON.stringify({ ok: false, error: message })
+    : `<!doctype html><meta charset="utf-8"><title>Kinoir Air</title><style>body{font:16px system-ui;background:#080912;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0}main{max-width:34rem;padding:2rem;text-align:center}p{color:#aeb3c2}</style><main><h1>Kinoir Air is locked</h1><p>${message}</p></main>`;
+  send(res, status, body, { 'Content-Type': api ? 'application/json' : 'text/html; charset=utf-8' });
 }
 
 /* GET /api/models — the Ollama models the user has pulled (for the Settings picker). */
@@ -116,18 +192,30 @@ async function saveLibrary(rootDir, payload) {
   return path.relative(rootDir, target);
 }
 
-function serveStatic(staticRoot, dataRoot, req, res) {
+function serveStatic(staticRoot, dataRoot, req, res, remote = false) {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
+  const allowed = urlPath === '/index.html' || urlPath.startsWith('/library/') ||
+    STATIC_PREFIXES.some(prefix => urlPath.startsWith(prefix));
+  if (!allowed) return send(res, 404, 'Not found');
   // library.json / watch.json live in the writable data root; everything else is app code
   const base = urlPath.startsWith('/library/') ? dataRoot : staticRoot;
   const filePath = path.normalize(path.join(base, urlPath));
   // path-traversal guard: never serve outside the root
   if (filePath !== base && !filePath.startsWith(base + path.sep))
     return send(res, 403, 'Forbidden');
-  fs.stat(filePath, (err, stat) => {
+  fs.stat(filePath, async (err, stat) => {
     if (err || !stat.isFile()) return send(res, 404, 'Not found');
+    if (remote && urlPath === '/library/library.json') {
+      try {
+        const payload = JSON.parse(await fsp.readFile(filePath, 'utf8'));
+        return send(res, 200, JSON.stringify(sanitizeLibrary(payload)),
+          { 'Content-Type': 'application/json; charset=utf-8' });
+      } catch { return send(res, 500, JSON.stringify({ error: 'Could not read library' }),
+        { 'Content-Type': 'application/json; charset=utf-8' }); }
+    }
     res.writeHead(200, {
+      ...SECURITY_HEADERS,
       'Cache-Control': 'no-store',
       'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
       'Content-Length': stat.size
@@ -155,22 +243,34 @@ async function localAvailability(rootDir) {
   let library;
   try {
     library = JSON.parse(await fsp.readFile(path.join(rootDir, 'library', 'library.json'), 'utf8')).library || [];
-  } catch { return []; }
+  } catch { return { ids: [], missingIds: [], availableKeys: [], missingKeys: [] }; }
   const results = await Promise.all(library.map(async item => {
+    const id = String(item.id || '');
     const candidates = item.type === 'movie'
-      ? [item.localPath]
-      : (item.seasons || []).flatMap(season =>
-        (season.episodes || []).map(episode => episode.localPath));
-    for (const file of candidates) {
-      if (!file) continue;
+      ? [{ file: item.localPath, key: `${id}/0/0` }]
+      : (item.seasons || []).flatMap((season, si) =>
+        (season.episodes || []).map((episode, ei) =>
+          ({ file: episode.localPath, key: `${id}/${si}/${ei}` })));
+    const linked = candidates.filter(candidate => candidate.file);
+    const availableKeys = [];
+    for (const candidate of linked) {
       try {
-        const stat = await fsp.stat(file);
-        if (stat.isFile() && stat.size > 0) return String(item.id || '');
+        const stat = await fsp.stat(candidate.file);
+        if (stat.isFile() && stat.size > 0) availableKeys.push(candidate.key);
       } catch { /* moved, removed, or currently unavailable */ }
     }
-    return '';
+    return { id, available: availableKeys.length, linked: linked.length, availableKeys,
+      missingKeys: linked.filter(candidate => !availableKeys.includes(candidate.key))
+        .map(candidate => candidate.key) };
   }));
-  return results.filter(id => /^[\w-]+$/.test(id));
+  const valid = results.filter(entry => /^[\w-]+$/.test(entry.id));
+  return {
+    ids: valid.filter(entry => entry.available > 0).map(entry => entry.id),
+    missingIds: valid.filter(entry => entry.linked > 0 && entry.available < entry.linked)
+      .map(entry => entry.id),
+    availableKeys: valid.flatMap(entry => entry.availableKeys),
+    missingKeys: valid.flatMap(entry => entry.missingKeys)
+  };
 }
 
 /* POST /api/scan { roots:[abs...] } — walk the default Media/ folder plus any
@@ -280,6 +380,28 @@ async function handleMedia(rootDir, res, pathname) {
 
 function handle(staticRoot, dataRoot, runtime, req, res) {
   const pathname = req.url.split('?')[0];
+  if (!trustedHost(req)) return reject(res, 421, 'This hostname is not allowed.', pathname);
+  const local = isLocalRequest(req);
+  const pair = pathname.match(/^\/pair\/([A-Za-z0-9_-]{20,128})$/);
+  if (!local && req.method === 'GET' && pair) {
+    if (!runtime.air?.enabled || !constantTimeEqual(pair[1], runtime.air.token))
+      return reject(res, 403, 'Pairing is disabled or this code has expired.', pathname);
+    res.writeHead(302, {
+      ...SECURITY_HEADERS,
+      'Cache-Control': 'no-store',
+      'Set-Cookie': `kinoir_air=${encodeURIComponent(runtime.air.token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400`,
+      Location: '/index.html'
+    });
+    res.end();
+    return;
+  }
+  const remote = !local;
+  if (remote && !hasAirSession(req, runtime))
+    return reject(res, 403, 'Enable Kinoir Air in Settings, then scan the current pairing code.', pathname);
+  if (req.method === 'POST' && !sameOrigin(req))
+    return reject(res, 403, 'Cross-site requests are not allowed.', pathname);
+  if (remote && req.method === 'POST' && !REMOTE_POST_ROUTES.has(pathname))
+    return reject(res, 403, 'Kinoir Air devices are read-only.', pathname);
   if (req.method === 'GET' &&
       (pathname.startsWith('/probe/') || pathname.startsWith('/hls/') || pathname.startsWith('/subs/'))) {
     handleMedia(dataRoot, res, pathname)
@@ -420,9 +542,10 @@ function handle(staticRoot, dataRoot, runtime, req, res) {
     return;
   }
   if (req.method === 'GET' && pathname === '/api/local-availability') {
-    localAvailability(dataRoot).then(ids =>
-      send(res, 200, JSON.stringify({ ok: true, ids }), { 'Content-Type': 'application/json' })
-    ).catch(error => send(res, 500, JSON.stringify({ ok: false, ids: [],
+    localAvailability(dataRoot).then(status =>
+      send(res, 200, JSON.stringify({ ok: true, ...status }), { 'Content-Type': 'application/json' })
+    ).catch(error => send(res, 500, JSON.stringify({ ok: false, ids: [], missingIds: [],
+      availableKeys: [], missingKeys: [],
       error: String(error.message || error) }), { 'Content-Type': 'application/json' }));
     return;
   }
@@ -473,7 +596,8 @@ function handle(staticRoot, dataRoot, runtime, req, res) {
     });
     return;
   }
-  if (req.method === 'GET' || req.method === 'HEAD') return serveStatic(staticRoot, dataRoot, req, res);
+  if (req.method === 'GET' || req.method === 'HEAD')
+    return serveStatic(staticRoot, dataRoot, req, res, remote);
   send(res, 405, 'Method not allowed');
 }
 
@@ -502,4 +626,12 @@ function startServer(staticRoot, preferredPort = 4174, dataRoot = staticRoot, ru
   });
 }
 
-module.exports = { startServer, saveLibrary };
+module.exports = {
+  startServer,
+  saveLibrary,
+  isLoopbackAddress,
+  localAvailability,
+  sanitizeLibrary,
+  sameOrigin,
+  trustedHost
+};

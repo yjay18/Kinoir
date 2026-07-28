@@ -1,4 +1,4 @@
-/* Conservative matching between scanner guesses and titles already in Linkflix.
+/* Conservative matching between scanner guesses and titles already in Kinoir.
    Exact display-title matches win. Wikipedia-style disambiguators are ignored only
    when that produces one unambiguous result, preventing accidental library merges. */
 

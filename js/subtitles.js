@@ -58,24 +58,24 @@ export function openMoreMenu(anchor, item) {
 }
 
 async function choosePreviewSource(item) {
-  if (!window.linkflix?.pickVideoFile || !window.linkflix?.buildPreviewFromFile) {
+  if (!window.kinoir?.pickVideoFile || !window.kinoir?.buildPreviewFromFile) {
     toast('Generating a preview from Finder needs the desktop app');
     return;
   }
   if (!await previewServiceReady()) {
-    toast('Restart Linkflix once to load the updated preview service');
+    toast('Restart Kinoir once to load the updated preview service');
     return;
   }
-  const file = await window.linkflix.pickVideoFile('Choose the first episode for this preview');
+  const file = await window.kinoir.pickVideoFile('Choose the first episode for this preview');
   if (!file) return;
   toast('Generating preview from the selected episode…');
   const progress = beginManualPreviewProgress(item.id, item.title);
-  const result = await window.linkflix.buildPreviewFromFile(item.id, file).catch(error =>
+  const result = await window.kinoir.buildPreviewFromFile(item.id, file).catch(error =>
     ({ ok: false, error: String(error.message || error) }));
   finishManualPreviewProgress(progress, result?.ok);
   if (!result?.ok) {
     const needsRestart = /no handler registered/i.test(result?.error || '');
-    toast(needsRestart ? 'Restart Linkflix once to enable preview generation'
+    toast(needsRestart ? 'Restart Kinoir once to enable preview generation'
       : `Couldn’t generate preview: ${result?.error || 'unknown error'}`);
     return;
   }
