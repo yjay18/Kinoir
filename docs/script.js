@@ -149,6 +149,7 @@
             : `${label} installer · View GitHub release`;
         });
       });
+      return release;
     } catch {
       document.querySelectorAll('[data-asset-meta]').forEach(node => {
         node.textContent = 'Available from GitHub Releases';
@@ -156,8 +157,26 @@
       document.querySelectorAll('[data-release-version]').forEach(node => {
         node.textContent = 'Latest release';
       });
+      return null;
     }
   }
 
-  loadRelease();
+  const releasePromise = loadRelease();
+
+  document.querySelectorAll('[data-download]').forEach(link => {
+    link.addEventListener('click', async event => {
+      if (link.dataset.directAsset === 'true') return;
+
+      event.preventDefault();
+      if (link.dataset.downloadPending === 'true') return;
+      link.dataset.downloadPending = 'true';
+      link.setAttribute('aria-busy', 'true');
+
+      await releasePromise;
+
+      link.removeAttribute('aria-busy');
+      delete link.dataset.downloadPending;
+      location.assign(link.dataset.directAsset === 'true' ? link.href : releasesUrl);
+    });
+  });
 })();

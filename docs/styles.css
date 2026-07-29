@@ -168,6 +168,7 @@ h1 span { color: var(--muted); }
 .hero-actions .download-action:first-child { min-width: 196px; justify-content: flex-start; padding-inline: 17px 22px; }
 .download-action small { display: block; margin-bottom: 1px; color: var(--muted); font-size: .66rem; font-weight: 500; }
 .download-action.button-accent small { color: rgba(255, 255, 255, .72); }
+.download-action[data-download-pending="true"] { cursor: progress; opacity: .72; }
 .compatibility { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 20px; color: var(--quiet); font-size: .72rem; }
 .compatibility i { width: 2px; height: 2px; border-radius: 9px; background: var(--quiet); }
 .status-dot { width: 6px; height: 6px; border-radius: 9px; background: #58e7a5; box-shadow: 0 0 10px rgba(88, 231, 165, .7); }
