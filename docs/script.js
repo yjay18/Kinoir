@@ -82,7 +82,7 @@
     }
   };
 
-  applyTheme(document.documentElement.dataset.siteTheme || 'aurora', false);
+  applyTheme(document.documentElement.dataset.siteTheme || 'graphite', false);
 
   themeChoices.forEach(button => {
     button.addEventListener('click', () => applyTheme(button.dataset.themeChoice));

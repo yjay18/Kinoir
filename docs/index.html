@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en" data-site-theme="aurora">
+<html lang="en" data-site-theme="graphite">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#05060b">
-  <meta name="description" content="Kinoir indexes movies and shows stored on your Mac or in Google Drive, remembers your place, and opens them in the player you choose.">
+  <meta name="theme-color" content="#090b0e">
+  <meta name="description" content="Kinoir indexes movies and shows stored on your Mac or in cloud storage, remembers your place, and opens them in the player you choose.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Kinoir — Your films, on your Mac">
-  <meta property="og:description" content="A local-first media library for files on your Mac and in Google Drive. Open source and account-free.">
+  <meta property="og:description" content="A local-first media library for files on your Mac and in cloud storage. Open source and account-free.">
   <meta property="og:image" content="social-card.svg">
   <meta name="twitter:card" content="summary_large_image">
   <title>Kinoir — Your films, on your Mac</title>
@@ -37,7 +37,7 @@
   <header class="site-header glass">
     <a class="wordmark" href="#top" aria-label="Kinoir home">
       <svg class="wordmark-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 3.7a1.2 1.2 0 0 1 1.8-1L16 9a1.2 1.2 0 0 1 0 2l-9.7 6.3a1.2 1.2 0 0 1-1.8-1V3.7Z"/></svg>
-      <span>Kin<span>oir</span></span>
+      <span>Ki<span>noir</span></span>
     </a>
     <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation">
       <span></span><span></span>
@@ -54,9 +54,9 @@
   <main id="main">
     <section class="hero section" id="top">
       <div class="hero-copy reveal">
-        <p class="eyebrow"><span></span> A media library for macOS</p>
+        <p class="eyebrow">A media library for macOS</p>
         <h1>Your films.<br><span>Your files.</span></h1>
-        <p class="hero-lede">Kinoir indexes movies and shows stored on your Mac or in Google Drive, remembers your place, and opens them in the player you choose.</p>
+        <p class="hero-lede">Kinoir indexes movies and shows stored on your Mac or in cloud storage, remembers your place, and opens them in the player you choose.</p>
         <div class="hero-actions">
           <a class="button button-accent download-action" data-download="arm64" href="https://github.com/yjay18/Kinoir/releases/latest">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14"/></svg>
@@ -85,9 +85,8 @@
 
     <section class="download-section section" id="download">
       <div class="section-heading reveal">
-        <p class="eyebrow"><span></span> Download</p>
+        <p class="eyebrow">Download</p>
         <h2>Pick the right build.</h2>
-        <p>The core app stays small. Ollama, IINA, and Whisper are detected separately if you decide to use them.</p>
       </div>
       <div class="download-grid">
         <article class="download-card glass reveal">
@@ -119,7 +118,7 @@
 
     <section class="features section" id="features">
       <div class="section-heading reveal">
-        <p class="eyebrow"><span></span> What it does</p>
+        <p class="eyebrow">What it does</p>
         <h2>A front end for the collection you already have.</h2>
       </div>
 
@@ -127,7 +126,7 @@
         <article class="feature-card feature-library glass reveal">
           <div class="feature-copy">
             <span class="line-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6.5h16v13H4zM7 3.5h10M8 10h8M8 14h5"/></svg></span>
-            <h3>Files and Drive links, together.</h3>
+            <h3>Local files and cloud storage, together.</h3>
             <p>Movies and episodic shows share one library, wherever the source happens to live.</p>
           </div>
           <div class="feature-screenshot library-screenshot" aria-hidden="true">
@@ -171,7 +170,7 @@
 
         <article class="feature-card feature-air glass reveal">
           <div class="air-visual" aria-hidden="true">
-            <div class="phone"><span></span><i></i><b>Kin<span>oir</span></b></div>
+            <div class="phone"><span></span><i></i><b>Ki<span>noir</span></b></div>
             <svg viewBox="0 0 120 70"><path d="M10 62C25 20 93 13 110 55"/><path d="M23 64c15-28 62-33 76-4"/><path d="M39 65c12-15 35-18 49-2"/></svg>
           </div>
           <div class="feature-copy">
@@ -185,21 +184,21 @@
 
     <section class="themes section" id="themes">
       <div class="section-heading reveal">
-        <p class="eyebrow"><span></span> Appearance</p>
+        <p class="eyebrow">Appearance</p>
         <h2>Five palettes. No restart.</h2>
         <p>Try one here. The whole page changes, and your choice is remembered on this device.</p>
       </div>
-      <div class="theme-showcase glass reveal" data-theme-demo="aurora">
+      <div class="theme-showcase glass reveal" data-theme-demo="graphite">
         <div class="theme-preview real-settings-preview">
           <span class="theme-preview-orb one"></span><span class="theme-preview-orb two"></span>
           <img src="assets/kinoir-settings.webp" width="1800" height="1175"
             alt="Kinoir Settings showing appearance themes and optional local components" loading="lazy">
         </div>
         <div class="theme-picker" role="radiogroup" aria-label="Change the website theme">
-          <button class="active" type="button" role="radio" aria-checked="true" data-theme-choice="aurora"><i><b></b><b></b><b></b></i><span>Aurora<small>Purple and cyan glow</small></span><em>✓</em></button>
+          <button type="button" role="radio" aria-checked="false" data-theme-choice="aurora"><i><b></b><b></b><b></b></i><span>Aurora<small>Purple and cyan glow</small></span><em>✓</em></button>
           <button type="button" role="radio" aria-checked="false" data-theme-choice="ember"><i><b></b><b></b><b></b></i><span>Ember<small>Warm amber and coral</small></span><em>✓</em></button>
           <button type="button" role="radio" aria-checked="false" data-theme-choice="ocean"><i><b></b><b></b><b></b></i><span>Ocean<small>Deep blue and teal</small></span><em>✓</em></button>
-          <button type="button" role="radio" aria-checked="false" data-theme-choice="graphite"><i><b></b><b></b><b></b></i><span>Graphite<small>Quiet, neutral contrast</small></span><em>✓</em></button>
+          <button class="active" type="button" role="radio" aria-checked="true" data-theme-choice="graphite"><i><b></b><b></b><b></b></i><span>Graphite<small>Quiet, neutral contrast</small></span><em>✓</em></button>
           <button type="button" role="radio" aria-checked="false" data-theme-choice="daylight"><i><b></b><b></b><b></b></i><span>Daylight<small>Bright, soft glass</small></span><em>✓</em></button>
         </div>
       </div>
@@ -208,10 +207,10 @@
     <section class="privacy section" id="privacy">
       <div class="privacy-panel glass reveal">
         <div class="privacy-copy">
-          <p class="eyebrow"><span></span> Local-first</p>
+          <p class="eyebrow">Local-first</p>
           <h2>No service in the middle.</h2>
           <p>There is no Kinoir account. Browsing history, semantic search, playback state, and your library database stay on your Mac.</p>
-          <p class="fine-print">Drive playback and optional metadata or Brave Search features connect only when you choose to use them.</p>
+          <p class="fine-print">Cloud playback and optional metadata or Brave Search features connect only when you choose to use them.</p>
         </div>
         <div class="privacy-points">
           <div><span class="privacy-check">✓</span><p><b>No Kinoir account</b><small>Open the app and add your library.</small></p></div>
@@ -224,7 +223,7 @@
     <section class="open-source section" id="open-source">
       <div class="source-panel glass reveal">
         <div class="source-copy">
-          <p class="eyebrow"><span></span> Open source</p>
+          <p class="eyebrow">Open source</p>
           <h2>Read the source. Change the app.</h2>
           <p>Kinoir is an Electron app released under the MIT license. Issues and pull requests are public.</p>
           <div class="source-actions">
@@ -247,9 +246,8 @@
       <div class="cta-panel glass reveal">
         <span class="cta-orb one"></span><span class="cta-orb two"></span>
         <div>
-          <p class="eyebrow"><span></span> Kinoir for macOS</p>
+          <p class="eyebrow">Kinoir for macOS</p>
           <h2>Download Kinoir.</h2>
-          <p>Install the core app, point it at your files, and add optional tools only if you need them.</p>
         </div>
         <div class="cta-actions">
           <a class="button button-accent download-action" data-download="arm64" href="https://github.com/yjay18/Kinoir/releases/latest">Apple Silicon <span>↓</span></a>
@@ -262,7 +260,7 @@
   <footer class="site-footer">
     <a class="wordmark" href="#top" aria-label="Back to top">
       <svg class="wordmark-mark" viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 3.7a1.2 1.2 0 0 1 1.8-1L16 9a1.2 1.2 0 0 1 0 2l-9.7 6.3a1.2 1.2 0 0 1-1.8-1V3.7Z"/></svg>
-      <span>Kin<span>oir</span></span>
+      <span>Ki<span>noir</span></span>
     </a>
     <p>Local-first media for macOS.</p>
     <nav aria-label="Footer navigation">
