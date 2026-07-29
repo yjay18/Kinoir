@@ -53,32 +53,57 @@
     revealItems.forEach(item => item.classList.add('visible'));
   }
 
+  const themeColours = {
+    aurora: '#07080d',
+    ember: '#0d0908',
+    ocean: '#041015',
+    graphite: '#090b0e',
+    daylight: '#e9edf2'
+  };
   const themeDemo = document.querySelector('[data-theme-demo]');
-  document.querySelectorAll('[data-theme-choice]').forEach(button => {
-    button.addEventListener('click', () => {
-      document.querySelectorAll('[data-theme-choice]').forEach(choice => {
-        const selected = choice === button;
-        choice.classList.toggle('active', selected);
-        choice.setAttribute('aria-checked', String(selected));
-      });
-      themeDemo.dataset.themeDemo = button.dataset.themeChoice;
+  const themeChoices = [...document.querySelectorAll('[data-theme-choice]')];
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+
+  const applyTheme = (theme, persist = true) => {
+    if (!Object.hasOwn(themeColours, theme)) return;
+    document.documentElement.dataset.siteTheme = theme;
+    if (themeDemo) themeDemo.dataset.themeDemo = theme;
+    if (themeMeta) themeMeta.content = themeColours[theme];
+
+    themeChoices.forEach(choice => {
+      const selected = choice.dataset.themeChoice === theme;
+      choice.classList.toggle('active', selected);
+      choice.setAttribute('aria-checked', String(selected));
+      choice.tabIndex = selected ? 0 : -1;
     });
+
+    if (persist) {
+      try { localStorage.setItem('kinoir-site-theme', theme); } catch {}
+    }
+  };
+
+  applyTheme(document.documentElement.dataset.siteTheme || 'aurora', false);
+
+  themeChoices.forEach(button => {
+    button.addEventListener('click', () => applyTheme(button.dataset.themeChoice));
   });
 
-  const stage = document.querySelector('[data-tilt-stage]');
-  const card = document.querySelector('[data-tilt-card]');
-  const motionAllowed = matchMedia('(prefers-reduced-motion: no-preference)').matches;
-  if (stage && card && motionAllowed && matchMedia('(pointer: fine)').matches) {
-    stage.addEventListener('pointermove', event => {
-      const rect = stage.getBoundingClientRect();
-      const x = (event.clientX - rect.left) / rect.width - .5;
-      const y = (event.clientY - rect.top) / rect.height - .5;
-      card.style.transform = `rotateY(${-6 + x * 3}deg) rotateX(${2 - y * 3}deg) translate3d(${x * 3}px, ${y * 3}px, 0)`;
-    });
-    stage.addEventListener('pointerleave', () => {
-      card.style.transform = '';
-    });
-  }
+  themeDemo?.addEventListener('keydown', event => {
+    const keys = ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+
+    const current = themeChoices.findIndex(choice => choice.getAttribute('aria-checked') === 'true');
+    let next = current;
+    if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = themeChoices.length - 1;
+    else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') next = (current + 1) % themeChoices.length;
+    else next = (current - 1 + themeChoices.length) % themeChoices.length;
+
+    const choice = themeChoices[next];
+    choice.focus();
+    applyTheme(choice.dataset.themeChoice);
+  });
 
   const bytes = value => {
     if (!Number.isFinite(value) || value <= 0) return '';
