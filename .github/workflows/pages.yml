@@ -1,0 +1,48 @@
+name: Deploy website to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare static website
+        run: |
+          mkdir -p _site
+          cp -R docs/. _site/
+          KINOIR_REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          KINOIR_PAGES_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${KINOIR_REPO_NAME}"
+          sed -i "s|https://yjay18.github.io/Kinoir|${KINOIR_PAGES_URL}|g" _site/robots.txt _site/sitemap.xml
+
+      - name: Upload static website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

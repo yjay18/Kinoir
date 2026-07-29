@@ -7,6 +7,13 @@ AI tools for recommendations and subtitles.
 
 > Project status: public beta.
 
+## Website
+
+The static product site lives in [`docs/`](docs/) and deploys to GitHub Pages
+through [`.github/workflows/pages.yml`](.github/workflows/pages.yml). Installer
+buttons read the latest Apple Silicon and Intel DMG assets from GitHub Releases;
+release binaries are not stored in the Pages site.
+
 ## Highlights
 
 - Movies and episodic shows with poster art, metadata, search, and themes.

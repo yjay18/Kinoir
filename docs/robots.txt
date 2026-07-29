@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://yjay18.github.io/Kinoir/sitemap.xml

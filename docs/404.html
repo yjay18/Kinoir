@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05060b">
+  <title>Page not found — Kinoir</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; overflow: hidden; color: rgba(255,255,255,.94); background: #05060b; }
+    body::before, body::after { content: ""; position: fixed; width: 65vw; height: 65vw; border-radius: 50%; filter: blur(110px); opacity: .45; }
+    body::before { left: -28vw; top: -30vw; background: #5b3df0; }
+    body::after { right: -29vw; bottom: -35vw; background: #0e5aa8; }
+    main { position: relative; z-index: 1; width: min(560px,calc(100vw - 32px)); padding: 55px; text-align: center; border: 1px solid rgba(255,255,255,.14); border-radius: 30px; background: rgba(255,255,255,.065); box-shadow: 0 30px 90px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.1); -webkit-backdrop-filter: blur(28px) saturate(170%); backdrop-filter: blur(28px) saturate(170%); }
+    .mark { color: #8b7bff; font-size: 1.25rem; }
+    h1 { margin: 20px 0 10px; font-size: clamp(2.5rem,10vw,4.4rem); letter-spacing: -.06em; }
+    p { margin: 0 0 28px; color: rgba(255,255,255,.57); line-height: 1.6; }
+    a { min-height: 48px; padding: 0 20px; display: inline-flex; align-items: center; border: 1px solid rgba(255,255,255,.32); border-radius: 16px; color: #fff; background: linear-gradient(125deg,#8b7bff,#4fd1ff); font-weight: 650; text-decoration: none; }
+    a:focus-visible { outline: none; box-shadow: 0 0 0 4px rgba(139,123,255,.35); }
+  </style>
+</head>
+<body>
+  <main>
+    <span class="mark">▶ Kinoir</span>
+    <h1>Nothing here.</h1>
+    <p>This page is not part of the library.</p>
+    <a href="./">Return to Kinoir</a>
+  </main>
+</body>
+</html>

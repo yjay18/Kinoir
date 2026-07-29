@@ -1,0 +1,12 @@
+{
+  "name": "Kinoir",
+  "short_name": "Kinoir",
+  "description": "A local-first media library for macOS.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#05060b",
+  "theme_color": "#05060b",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

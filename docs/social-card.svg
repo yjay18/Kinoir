@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="a"><stop stop-color="#5b3df0" stop-opacity=".9"/><stop offset="1" stop-color="#5b3df0" stop-opacity="0"/></radialGradient>
+    <radialGradient id="b"><stop stop-color="#0e79b5" stop-opacity=".78"/><stop offset="1" stop-color="#0e79b5" stop-opacity="0"/></radialGradient>
+    <linearGradient id="c" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8b7bff"/><stop offset="1" stop-color="#4fd1ff"/></linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#05060b"/>
+  <circle cx="120" cy="20" r="500" fill="url(#a)"/><circle cx="1100" cy="620" r="460" fill="url(#b)"/>
+  <rect x="71" y="67" width="1058" height="496" rx="42" fill="white" fill-opacity=".065" stroke="white" stroke-opacity=".15"/>
+  <path d="M133 120a6 6 0 0 1 9-5l43 27a6 6 0 0 1 0 10l-43 27a6 6 0 0 1-9-5v-54Z" fill="url(#c)"/>
+  <text x="205" y="164" fill="white" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="69" font-weight="700" letter-spacing="-3">Kinoir</text>
+  <text x="120" y="320" fill="white" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="72" font-weight="680" letter-spacing="-4">Your media library,</text>
+  <text x="120" y="400" fill="white" fill-opacity=".55" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="72" font-weight="680" letter-spacing="-4">properly organised.</text>
+  <text x="124" y="480" fill="white" fill-opacity=".56" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="25">Local-first · Open source · Made for macOS</text>
+</svg>
