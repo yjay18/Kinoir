@@ -399,6 +399,18 @@ h1 span { color: var(--muted); }
 .source-facts dt { color: var(--quiet); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
 .source-facts dd { margin: 0; color: var(--text); font-size: .86rem; font-weight: 620; }
 
+.faq { padding: 100px 0 120px; }
+.faq-panel { padding: 65px 70px; border-radius: 24px; background: var(--surface); }
+.faq-panel details { margin-bottom: 12px; padding: 18px 20px; border: 1px solid var(--stroke); border-radius: 16px; background: var(--surface-soft); transition: background .3s ease; }
+.faq-panel details:hover { background: var(--surface); }
+.faq-panel summary { color: var(--text); font-size: 1.05rem; font-weight: 650; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+.faq-panel summary::marker { display: none; content: ""; }
+.faq-panel summary::-webkit-details-marker { display: none; }
+.faq-panel summary::after { content: "+"; color: var(--quiet); font-size: 1.5rem; font-weight: 300; line-height: 1; transition: transform .3s ease; }
+.faq-panel details[open] summary::after { transform: rotate(45deg); color: var(--purple); }
+.faq-panel p { margin: 16px 0 0; color: var(--muted); font-size: .95rem; line-height: 1.6; }
+.faq-panel code { padding: 3px 6px; border-radius: 6px; background: rgb(var(--panel-rgb) / .08); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+
 .final-cta { padding: 100px 0 80px; }
 .cta-panel { position: relative; min-height: 390px; padding: 70px; display: flex; align-items: center; justify-content: space-between; gap: 50px; overflow: hidden; border-radius: 24px; background: var(--surface); }
 .cta-panel > div { position: relative; z-index: 2; }
@@ -415,11 +427,15 @@ h1 span { color: var(--muted); }
 .site-footer nav a:hover { color: var(--text); }
 .site-footer > small { grid-column: 1 / -1; color: var(--quiet); font-size: .68rem; }
 
-.release-toast { position: fixed; z-index: 150; right: 22px; bottom: 22px; max-width: 330px; padding: 13px 16px; display: flex; align-items: center; gap: 11px; border-radius: 14px; background: var(--nav-bg); }
+.release-toast, .download-toast { position: fixed; z-index: 150; right: 22px; bottom: 22px; max-width: 330px; padding: 13px 16px; display: flex; align-items: center; gap: 11px; border-radius: 14px; background: var(--nav-bg); transition: opacity .4s ease, transform .4s ease; }
 .release-toast > span { width: 8px; height: 8px; border-radius: 10px; background: #ffb85c; box-shadow: 0 0 12px rgba(255, 184, 92, .55); }
 .release-toast p { margin: 0; display: flex; flex-direction: column; }
-.release-toast b { font-size: .75rem; }
-.release-toast small { margin-top: 3px; color: var(--muted); font-size: .64rem; }
+.release-toast b, .download-toast b { font-size: .75rem; }
+.release-toast small, .download-toast small { margin-top: 3px; color: var(--muted); font-size: .64rem; }
+.download-toast { max-width: 420px; bottom: 90px; }
+.download-toast span { background: #58e7a5; box-shadow: 0 0 12px rgba(88, 231, 165, .55); }
+.download-toast a { color: var(--text); text-decoration: underline; text-decoration-color: var(--muted); text-underline-offset: 3px; }
+.download-toast a:hover { text-decoration-color: var(--purple); }
 
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .75s ease, transform .8s cubic-bezier(.16, 1, .3, 1); }
 .reveal.visible { opacity: 1; transform: none; }
@@ -453,7 +469,7 @@ h1 span { color: var(--muted); }
   .theme-showcase { grid-template-columns: 1fr; }
   .theme-picker { display: grid; grid-template-columns: 1fr 1fr; }
   .theme-picker button:last-child { grid-column: 1 / -1; }
-  .privacy-panel, .source-panel { grid-template-columns: 1fr; }
+  .privacy-panel, .source-panel, .faq-panel { grid-template-columns: 1fr; }
   .privacy-panel::before { right: -80px; bottom: 30px; top: auto; }
   .cta-panel { align-items: flex-start; flex-direction: column; }
   .cta-actions { width: 100%; }
@@ -498,7 +514,7 @@ h1 span { color: var(--muted); }
   .theme-picker { display: flex; }
   .theme-picker button { min-height: 66px; grid-template-columns: 40px 1fr auto; }
   .theme-picker button > i { width: 40px; height: 40px; }
-  .privacy-panel, .source-panel, .cta-panel { padding: 40px 27px; border-radius: 28px; }
+  .privacy-panel, .source-panel, .faq-panel, .cta-panel { padding: 40px 27px; border-radius: 28px; }
   .source-actions { align-items: flex-start; flex-direction: column; }
   .final-cta { padding-top: 75px; }
   .cta-panel { min-height: 580px; }

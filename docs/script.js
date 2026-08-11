@@ -176,6 +176,13 @@
 
       link.removeAttribute('aria-busy');
       delete link.dataset.downloadPending;
+
+      const toast = document.getElementById('download-toast');
+      if (toast) {
+        toast.hidden = false;
+        setTimeout(() => toast.hidden = true, 12000);
+      }
+
       location.assign(link.dataset.directAsset === 'true' ? link.href : releasesUrl);
     });
   });

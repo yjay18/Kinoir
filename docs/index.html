@@ -45,6 +45,7 @@
     <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
       <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
+      <a href="#faq">FAQ</a>
       <a href="#open-source">Open source</a>
       <a class="github-link" data-github-link href="https://github.com/yjay18/Kinoir">GitHub</a>
       <a class="button button-small button-accent" href="#download">Download</a>
@@ -221,6 +222,28 @@
         </div>
       </div>
     </section>
+    <section class="faq section" id="faq">
+      <div class="faq-panel glass reveal">
+        <div class="section-heading">
+          <p class="eyebrow">Troubleshooting</p>
+          <h2>Common Questions</h2>
+        </div>
+        <details open>
+          <summary>macOS says Kinoir is "damaged" or "cannot be verified" when opening.</summary>
+          <p>Because Kinoir is a free, open-source project without a paid Apple Developer subscription, macOS Gatekeeper places internet downloads into quarantine by default. The app is not actually damaged.</p>
+          <p><b>Quick fix:</b> Right-click <code>Kinoir.app</code> in Finder, select <b>Open</b>, and click <b>Open</b> again. (You only have to do this once.)</p>
+          <p><b>Terminal alternative:</b> Run <code>xattr -cr /Applications/Kinoir.app</code> to manually remove the quarantine flag.</p>
+        </details>
+        <details>
+          <summary>How do I connect the local AI Concierge?</summary>
+          <p>Kinoir uses <a href="https://ollama.com/" target="_blank" rel="noopener noreferrer" style="text-decoration: underline;">Ollama</a> to run models locally. Once Ollama is installed on your Mac, Kinoir will automatically detect the background service. You can choose which model to pull directly in Kinoir's Settings.</p>
+        </details>
+        <details>
+          <summary>Does Kinoir support MKV files?</summary>
+          <p>Yes! While Kinoir has a built-in fallback player, for the best format compatibility (including MKV and advanced subtitles), it integrates natively with <a href="https://iina.io/" target="_blank" rel="noopener noreferrer" style="text-decoration: underline;">IINA</a>. Just install IINA on your Mac and Kinoir will use it automatically.</p>
+        </details>
+      </div>
+    </section>
 
     <section class="open-source section" id="open-source">
       <div class="source-panel glass reveal">
@@ -266,6 +289,7 @@
     <nav aria-label="Footer navigation">
       <a data-github-link href="https://github.com/yjay18/Kinoir">GitHub</a>
       <a data-release-notes href="https://github.com/yjay18/Kinoir/releases/latest">Releases</a>
+      <a href="#faq">FAQ</a>
       <a data-docs-link href="https://github.com/yjay18/Kinoir#readme">Documentation</a>
       <a data-license-link href="https://github.com/yjay18/Kinoir/blob/main/LICENSE">License</a>
     </nav>
@@ -274,6 +298,10 @@
 
   <div class="release-toast glass" role="status" aria-live="polite" hidden>
     <span></span><p><b>Release information unavailable</b><small>The GitHub releases page will open instead.</small></p>
+  </div>
+
+  <div class="download-toast glass" id="download-toast" role="status" aria-live="polite" hidden>
+    <span></span><p><b>Thank you for downloading!</b><small>If macOS says the app is "damaged" on first launch, <a href="#faq">read our quick fix here</a>.</small></p>
   </div>
 </body>
 </html>
