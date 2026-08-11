@@ -178,9 +178,9 @@ kbd {
 }
 .brand { font: inherit; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em;
   color: var(--text); background: none; border: 0; padding: 3px; border-radius: 10px;
-  cursor: pointer; white-space: nowrap; }
+  cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; }
 .brand:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
-.brand-mark { color: var(--accent); font-size: 0.9em; margin-right: 2px; }
+.brand-mark { width: 22px; height: 22px; border: 1px solid var(--stroke); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); margin-right: 6px; }
 .brand-accent { background: linear-gradient(120deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text; background-clip: text; color: transparent; }
 
