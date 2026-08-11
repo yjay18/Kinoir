@@ -136,9 +136,8 @@ svg { display: block; }
 .wordmark { display: inline-flex; align-items: center; gap: 8px; font-size: 1.3rem; font-weight: 750; letter-spacing: -.04em; }
 .wordmark > span > span, .phone b span { color: transparent; background: linear-gradient(120deg, #b8c0cc, #687382); background-clip: text; -webkit-background-clip: text; }
 .mini-brand span, .theme-preview-bar b span { color: transparent; background: linear-gradient(120deg, var(--purple), var(--cyan)); background-clip: text; -webkit-background-clip: text; }
-.wordmark-mark { width: 17px; fill: #aeb7c4; filter: drop-shadow(0 0 8px rgba(133, 145, 161, .32)); }
+.wordmark-mark { width: 22px; height: 22px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
 :root[data-site-theme="daylight"] .wordmark > span > span, :root[data-site-theme="daylight"] .phone b span { background-image: linear-gradient(120deg, #596373, #252b34); }
-:root[data-site-theme="daylight"] .wordmark-mark { fill: #46505e; filter: none; }
 .site-nav { display: flex; align-items: center; gap: 7px; }
 .site-nav > a:not(.button) { padding: 10px 12px; border-radius: 12px; color: var(--muted); font-size: .88rem; transition: color .2s ease, background .2s ease; }
 .site-nav > a:not(.button):hover { color: var(--text); background: var(--surface-strong); }
