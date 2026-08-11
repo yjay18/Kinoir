@@ -50,9 +50,8 @@
       ],
       "category": "public.app-category.entertainment",
       "icon": "build/icon.icns",
-      "hardenedRuntime": true,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
+      "hardenedRuntime": false,
+      "identity": null,
       "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   }
