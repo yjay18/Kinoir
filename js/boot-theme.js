@@ -3,7 +3,7 @@
   try {
     const saved = JSON.parse(localStorage.getItem('lf:settings') || '{}');
     const choices = ['aurora', 'ember', 'ocean', 'graphite', 'daylight', 'system'];
-    const preference = choices.includes(saved.theme) ? saved.theme : 'aurora';
+    const preference = choices.includes(saved.theme) ? saved.theme : 'graphite';
     const theme = preference === 'system'
       ? (matchMedia('(prefers-color-scheme: light)').matches ? 'daylight' : 'aurora')
       : preference;

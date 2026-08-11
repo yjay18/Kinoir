@@ -423,7 +423,7 @@ export function openAddModal(editId = null) {
 
 /* ---------- Settings ---------- */
 export function openSettings() {
-  const originalTheme = state.settings.theme || 'aurora';
+  const originalTheme = state.settings.theme || 'graphite';
   let previewTheme = originalTheme;
   let themeCommitted = false;
   onModalClose = () => { if (!themeCommitted) applyTheme(originalTheme); };

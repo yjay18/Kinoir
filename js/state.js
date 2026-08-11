@@ -33,7 +33,7 @@ export const state = {
       groundToLibrary: true,
       alwaysPip: false,
       reduceEffects: false,
-      theme: 'aurora',
+      theme: 'graphite',
       mediaRoots: []
     },
     store.get('settings', {})),
@@ -50,7 +50,7 @@ state.settings.allowOutsideSuggestions = Boolean(state.settings.allowOutsideSugg
 state.settings.useBraveSearch = Boolean(state.settings.useBraveSearch &&
   (state.settings.braveKeyConfigured || state.settings.braveKey));
 state.settings.theme = ['aurora', 'ember', 'ocean', 'graphite', 'daylight', 'system']
-  .includes(state.settings.theme) ? state.settings.theme : 'aurora';
+  .includes(state.settings.theme) ? state.settings.theme : 'graphite';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 

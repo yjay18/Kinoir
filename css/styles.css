@@ -181,7 +181,7 @@ kbd {
   cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; }
 .brand:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
 .brand-mark { width: 22px; height: 22px; border: 1px solid var(--stroke); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); margin-right: 6px; }
-.brand-accent { background: linear-gradient(120deg, var(--accent), var(--accent-2));
+.brand-accent { background: linear-gradient(120deg, #a7b0c0, #75849d);
   -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 .topbar-search { flex: 1; display: flex; align-items: center; gap: 10px;
