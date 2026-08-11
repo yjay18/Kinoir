@@ -6,11 +6,11 @@
   <meta name="theme-color" content="#090b0e">
   <meta name="description" content="Kinoir indexes movies and shows stored on your Mac or in cloud storage, remembers your place, and opens them in the player you choose.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Kinoir — Your films, on your Mac">
+  <meta property="og:title" content="Kinoir">
   <meta property="og:description" content="A local-first media library for files on your Mac and in cloud storage. Open source and account-free.">
   <meta property="og:image" content="social-card.svg">
   <meta name="twitter:card" content="summary_large_image">
-  <title>Kinoir — Your films, on your Mac</title>
+  <title>Kinoir</title>
   <script>
     try {
       const theme = localStorage.getItem('kinoir-site-theme');
@@ -90,7 +90,9 @@
       </div>
       <div class="download-grid">
         <article class="download-card glass reveal">
-          <div class="chip-icon chip-silicon" aria-hidden="true"><span></span></div>
+          <div class="chip-icon chip-silicon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="brand-vendor-icon apple-vendor-icon" aria-hidden="true" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.32c.67-.82 1.13-1.97.99-3.12-1 .04-2.17.67-2.88 1.49-.6.69-1.13 1.83-.98 2.96 1.12.09 2.21-.51 2.87-1.33z"/></svg>
+          </div>
           <div class="download-card-copy">
             <p class="recommended">Recommended</p>
             <h3>Apple Silicon</h3>
@@ -100,7 +102,9 @@
           <small class="asset-meta" data-asset-meta="arm64">Checking the latest release…</small>
         </article>
         <article class="download-card glass reveal">
-          <div class="chip-icon chip-intel" aria-hidden="true"><span></span></div>
+          <div class="chip-icon chip-intel" aria-hidden="true">
+            <svg viewBox="0 0 24 24" class="brand-vendor-icon intel-vendor-icon" aria-hidden="true" fill="currentColor"><path d="M20.42 7.345v9.18h1.651v-9.18zM0 7.475v1.737h1.737V7.474zm9.78.352v6.053c0 .513.044.945.13 1.292.087.34.235.618.44.828.203.21.475.359.803.451.334.093.754.136 1.255.136h.216v-1.533c-.24 0-.445-.012-.593-.037a.672.672 0 0 1-.39-.173.693.693 0 0 1-.173-.377 4.002 4.002 0 0 1-.037-.606v-2.182h1.193v-1.416h-1.193V7.827zm-3.505 2.312c-.396 0-.76.08-1.082.241-.327.161-.6.384-.822.668l-.087.117v-.902H2.658v6.256h1.639v-3.214c.018-.588.16-1.02.433-1.299.29-.297.642-.445 1.044-.445.476 0 .841.149 1.082.433.235.284.359.686.359 1.2v3.324h1.663V12.97c.006-.89-.229-1.595-.686-2.09-.458-.495-1.1-.742-1.917-.742zm10.065.006a3.252 3.252 0 0 0-2.306.946c-.29.29-.525.637-.692 1.033a3.145 3.145 0 0 0-.254 1.273c0 .452.08.878.241 1.274.161.395.39.742.674 1.032.284.29.637.526 1.045.693.408.173.86.26 1.342.26 1.397 0 2.262-.637 2.782-1.23l-1.187-.904c-.248.297-.841.699-1.583.699-.464 0-.847-.105-1.138-.321a1.588 1.588 0 0 1-.593-.872l-.019-.056h4.915v-.587c0-.451-.08-.872-.235-1.267a3.393 3.393 0 0 0-.661-1.033 3.013 3.013 0 0 0-1.02-.692 3.345 3.345 0 0 0-1.311-.248zm-16.297.118v6.256h1.651v-6.256zm16.278 1.286c1.132 0 1.664.797 1.664 1.255l-3.32.006c0-.458.525-1.255 1.656-1.261zm7.073 3.814a.606.606 0 0 0-.606.606.606.606 0 0 0 .606.606.606.606 0 0 0 .606-.606.606.606 0 0 0-.606-.606zm-.008.105a.5.5 0 0 1 .002 0 .5.5 0 0 1 .5.501.5.5 0 0 1-.5.5.5.5 0 0 1-.5-.5.5.5 0 0 1 .498-.5zm-.233.155v.699h.13v-.285h.093l.173.285h.136l-.18-.297a.191.191 0 0 0 .118-.056c.03-.03.05-.074.05-.136 0-.068-.02-.117-.063-.154-.037-.038-.105-.056-.185-.056zm.13.099h.154c.019 0 .037.006.056.012a.064.064 0 0 1 .037.031c.013.013.012.031.012.056a.124.124 0 0 1-.012.055.164.164 0 0 1-.037.031c-.019.006-.037.013-.056.013h-.154Z"/></svg>
+          </div>
           <div class="download-card-copy">
             <p class="recommended quiet">Legacy Macs</p>
             <h3>Intel</h3>
@@ -234,8 +238,6 @@
         <div class="source-facts" aria-label="Kinoir project facts">
           <dl>
             <div><dt>License</dt><dd>MIT</dd></div>
-            <div><dt>Platform</dt><dd>macOS 12+</dd></div>
-            <div><dt>Core</dt><dd>Electron</dd></div>
             <div><dt>Account</dt><dd>Not required</dd></div>
           </dl>
         </div>
