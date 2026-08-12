@@ -165,18 +165,6 @@
 
   document.querySelectorAll('[data-download]').forEach(link => {
     link.addEventListener('click', async event => {
-      if (link.dataset.directAsset === 'true') return;
-
-      event.preventDefault();
-      if (link.dataset.downloadPending === 'true') return;
-      link.dataset.downloadPending = 'true';
-      link.setAttribute('aria-busy', 'true');
-
-      await releasePromise;
-
-      link.removeAttribute('aria-busy');
-      delete link.dataset.downloadPending;
-
       const toast = document.getElementById('download-toast');
       if (toast) {
         toast.hidden = false;
@@ -191,6 +179,18 @@
         void faqGatekeeper.offsetWidth;
         faqGatekeeper.classList.add('highlight-pulse');
       }
+
+      if (link.dataset.directAsset === 'true') return;
+
+      event.preventDefault();
+      if (link.dataset.downloadPending === 'true') return;
+      link.dataset.downloadPending = 'true';
+      link.setAttribute('aria-busy', 'true');
+
+      await releasePromise;
+
+      link.removeAttribute('aria-busy');
+      delete link.dataset.downloadPending;
 
       location.assign(link.dataset.directAsset === 'true' ? link.href : releasesUrl);
     });
