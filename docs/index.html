@@ -227,11 +227,20 @@
           <p class="eyebrow">Troubleshooting</p>
           <h2>Common Questions</h2>
         </div>
-        <details open>
+        <details id="faq-gatekeeper" open>
           <summary>macOS says Kinoir is "damaged" or "cannot be verified" when opening.</summary>
           <p>Because Kinoir is a free, open-source project without a paid Apple Developer subscription, macOS Gatekeeper places internet downloads into quarantine by default. The app is not actually damaged.</p>
           <p><b>Quick fix:</b> Right-click <code>Kinoir.app</code> in Finder, select <b>Open</b>, and click <b>Open</b> again. (You only have to do this once.)</p>
-          <p><b>Terminal alternative:</b> Run <code>xattr -cr /Applications/Kinoir.app</code> to manually remove the quarantine flag.</p>
+          <p><b>Terminal fix (Recommended):</b> If macOS hides the "Open anyway" button entirely, you can easily fix this via Terminal:</p>
+          <ol style="margin-top:8px; margin-bottom:12px; padding-left:22px; color:var(--text-dim);">
+            <li>Open the downloaded DMG and drag <b>Kinoir.app</b> to your <b>Applications</b> folder.</li>
+            <li>Open your Mac's <b>Terminal</b> (Cmd + Space, type "Terminal").</li>
+            <li>Copy and paste the command below, then press Enter:</li>
+          </ol>
+          <div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.25); padding:8px 12px; border-radius:8px; border:1px solid var(--stroke); margin-bottom:12px;">
+            <code id="xattr-cmd" style="flex:1; user-select:all; white-space:nowrap; overflow-x:auto; background:transparent; padding:0; border:none;">xattr -cr /Applications/Kinoir.app</code>
+            <button type="button" class="button button-small" onclick="navigator.clipboard.writeText(document.getElementById('xattr-cmd').textContent); this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy', 2000)" style="padding:4px 10px; min-height:unset;">Copy</button>
+          </div>
         </details>
         <details>
           <summary>How do I connect the local AI Concierge?</summary>

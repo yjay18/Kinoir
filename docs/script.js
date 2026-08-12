@@ -182,6 +182,15 @@
         toast.hidden = false;
         setTimeout(() => toast.hidden = true, 12000);
       }
+      
+      const faqGatekeeper = document.getElementById('faq-gatekeeper');
+      if (faqGatekeeper) {
+        faqGatekeeper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        faqGatekeeper.open = true;
+        faqGatekeeper.classList.remove('highlight-pulse');
+        void faqGatekeeper.offsetWidth;
+        faqGatekeeper.classList.add('highlight-pulse');
+      }
 
       location.assign(link.dataset.directAsset === 'true' ? link.href : releasesUrl);
     });

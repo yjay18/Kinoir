@@ -436,6 +436,15 @@ h1 span { color: var(--muted); }
 .download-toast a { color: var(--text); text-decoration: underline; text-decoration-color: var(--muted); text-underline-offset: 3px; }
 .download-toast a:hover { text-decoration-color: var(--purple); }
 
+.highlight-pulse {
+  animation: pulse-border 3.5s ease-out;
+}
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0px var(--cyan); background: rgb(var(--cyan-rgb) / .15); }
+  15% { box-shadow: 0 0 0 8px transparent; background: rgb(var(--cyan-rgb) / .05); }
+  100% { box-shadow: 0 0 0 0px transparent; background: transparent; }
+}
+
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity .75s ease, transform .8s cubic-bezier(.16, 1, .3, 1); }
 .reveal.visible { opacity: 1; transform: none; }
 
