@@ -323,7 +323,7 @@ function detailHtml(id) {
   const head = `<section class="hero hero-detail glass">
     <button class="detail-back focusable" data-action="back" title="Back" aria-label="Back">Back <kbd>⎋</kbd></button>
     ${previewEnabled ? `<video class="hero-video-bg" src="${previewUrl(item.id)}"
-      autoplay loop playsinline data-preview-reveal data-dim-next data-remove-on-error></video>` : ''}
+      autoplay loop muted playsinline data-preview-reveal data-dim-next data-remove-on-error></video>` : ''}
     <div class="hero-backdrop" style="background:${coverSrc(item)
       ? `url('${esc(coverSrc(item))}') center/cover` : gradientFor(item.title)}"></div>
     ${previewEnabled ? `<div class="hero-video-overlay"></div>` : ''}
@@ -471,7 +471,18 @@ function useNativePlayer(item, s = 0, e = 0) {
   return Boolean(p && window.kinoir?.playNative);
 }
 
+export function stopPreviewMedia() {
+  hidePop();
+  document.querySelectorAll('.hero-video-bg, .pop-teaser').forEach(v => {
+    v.pause();
+    v.removeAttribute('src');
+    v.load();
+    v.remove();
+  });
+}
+
 function playLocalNative(item, s = 0, e = 0) {
+  stopPreviewMedia();
   const p = localPathFor(item, s, e);
   rememberWatchPosition(item.id, s, e);
   const label = item.type === 'show' ? `${item.title} — S${s + 1}E${e + 1}` : item.title;
@@ -493,6 +504,7 @@ function playLocalNative(item, s = 0, e = 0) {
 }
 
 export function playEpisode(id, s = 0, e = 0) {
+  stopPreviewMedia();
   const item = state.library.find(i => i.id === id);
   if (!item || item.type !== 'show') return false;
   if (!episodePlayable(item, s, e)) {
@@ -506,6 +518,7 @@ export function playEpisode(id, s = 0, e = 0) {
 }
 
 export function playItem(id) {                 // resume where you left off, else first playable
+  stopPreviewMedia();
   const item = state.library.find(i => i.id === id);
   if (!item) return;
   const fallback = playablePosition(item) || { s: 0, e: 0 };
@@ -554,6 +567,7 @@ function bindView() {
     }
     const openExt = e.target.closest('[data-open-external]');
     if (openExt) {
+      stopPreviewMedia();
       const item = state.library.find(i => i.id === openExt.dataset.openExternal);
       const p = localPathFor(item, 0, 0);
       if (p && window.kinoir?.openExternalFile) {

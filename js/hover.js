@@ -44,7 +44,7 @@ function showPop(card) {
       ${src ? `<img src="${esc(src)}" alt="" data-remove-on-error>` : ''}
       <div class="cover-fallback">${esc((item.title || '?')[0].toUpperCase())}</div>
       ${!state.settings.reduceEffects && hasPreview(id) ? `<video class="pop-teaser" src="${previewUrl(id)}"
-        autoplay loop playsinline data-preview-reveal></video>` : ''}
+        autoplay loop muted playsinline data-preview-reveal></video>` : ''}
     </div>
     <div class="pop-body">
       <div class="pop-title">${esc(item.title)}</div>
@@ -108,6 +108,7 @@ $('#view').addEventListener('mouseout', e => {
 });
 pop.addEventListener('mouseenter', () => clearTimeout(popHideTimer));
 pop.addEventListener('mouseleave', () => { popHideTimer = setTimeout(hidePop, 200); });
+$('#view').addEventListener('click', hidePop);
 pop.addEventListener('click', e => {
   const id = popCardId;
   if (!id) return;

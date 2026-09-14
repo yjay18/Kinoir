@@ -10,6 +10,7 @@ import { isPlayable } from './taxonomy.js';
 import { gradientFor } from './covers.js';
 import { render } from './views.js';
 import { findLibraryTitleMatch } from './titlematch.js';
+import { openAddModal } from './modals.js';
 
 const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 // strip Wikipedia disambiguation, e.g. "Interstellar (film)" -> "Interstellar"
@@ -165,7 +166,7 @@ function renderReview() {
     (row.matched ? matched : review).push(row);
   });
 
-  const rowHtml = r => `<label class="scan-row">
+  const rowHtml = r => `<div class="scan-row">
     <input type="checkbox" checked data-kind="${r.kind}" data-i="${r.i}">
     ${thumb(r.title, r.image, (r.title[0] || '?').toUpperCase())}
     <span class="scan-info">
@@ -174,13 +175,14 @@ function renderReview() {
         : `<input class="scan-title-edit" data-kind="${r.kind}" data-i="${r.i}" value="${esc(r.title)}" placeholder="Type the correct title">`}
       <small>${esc(r.sub)}</small>
     </span>
-  </label>`;
+    ${!r.matched ? `<button type="button" class="pill-btn small scan-edit-btn" data-edit-kind="${r.kind}" data-edit-i="${r.i}">Edit details</button>` : ''}
+  </div>`;
 
-  const cleanupHtml = sourceless.map((it, i) => `<label class="scan-row cleanup">
+  const cleanupHtml = sourceless.map((it, i) => `<div class="scan-row cleanup">
     <input type="checkbox" data-cleanup="${i}">
     ${thumb(it.title, '', (it.title[0] || '?').toUpperCase())}
     <span class="scan-info"><b>${esc(it.title)}</b><small>${it.type === 'show' ? 'Series' : 'Film'} · no Drive link or local file</small></span>
-  </label>`).join('');
+  </div>`).join('');
 
   scanModal(`
     ${matched.length ? `<div class="scan-section">
@@ -292,6 +294,87 @@ function applyReview() {
   toast(`Scan complete — added ${added}${deleted ? `, removed ${deleted}` : ''} ✓`);
 }
 
+function saveCurrentEdits() {
+  $$('.scan-title-edit').forEach(inp => {
+    const kind = inp.dataset.kind;
+    const idx = +inp.dataset.i;
+    const val = inp.value.trim();
+    if (kind === 'movie' && scanState?.movies[idx]) {
+      scanState.movies[idx].cand.title = val;
+    } else if (kind === 'show' && scanState?.shows[idx]) {
+      scanState.shows[idx].group.show = val;
+    }
+  });
+}
+
+function openInputScreenForScanItem(kind, idx) {
+  saveCurrentEdits();
+  if (kind === 'movie') {
+    const m = scanState.movies[idx];
+    const initial = {
+      type: 'movie',
+      title: m.cand.title,
+      localPath: m.cand.path || '',
+      cover: m.info?.image || '',
+      subtitle: m.info?.summary || '',
+      wikiTitle: m.info?.wikiTitle || ''
+    };
+    openAddModal(initial, () => {
+      scanState.movies.splice(idx, 1);
+      if (scanState.movies.length || scanState.shows.length || scanState.sourceless.length) {
+        renderReview();
+      } else {
+        closeScanModal();
+        render();
+      }
+    }, () => {
+      renderReview();
+    });
+  } else {
+    const s = scanState.shows[idx];
+    let seasons = s.enriched ? seasonsFromTvmaze(s.enriched.seasons) : [];
+    if (!seasons.length) {
+      const map = {};
+      for (const ep of s.group.episodes) {
+        const sn = ep.season || 1;
+        if (!map[sn]) map[sn] = [];
+        map[sn].push({
+          season: sn,
+          number: ep.episode || (map[sn].length + 1),
+          title: ep.epTitle || `Episode ${ep.episode || (map[sn].length + 1)}`,
+          localPath: ep.path || '',
+          link: '',
+          airdate: '',
+          subtitle: ''
+        });
+      }
+      seasons = Object.entries(map).map(([sn, eps]) => ({
+        name: +sn === 0 ? 'Specials' : `Season ${sn}`,
+        episodes: eps.sort((a, b) => (+a.number) - (+b.number))
+      }));
+    }
+    const initial = {
+      type: 'show',
+      title: s.group.show,
+      cover: s.enriched?.info?.image || '',
+      subtitle: s.enriched?.info?.summary || '',
+      tvmazeId: s.enriched?.info?.id ? String(s.enriched.info.id) : '',
+      seasons
+    };
+    openAddModal(initial, () => {
+      scanState.shows.splice(idx, 1);
+      if (scanState.movies.length || scanState.shows.length || scanState.sourceless.length) {
+        renderReview();
+      } else {
+        closeScanModal();
+        render();
+      }
+    }, () => {
+      renderReview();
+    });
+  }
+}
+
 /* ---- modal shell ---- */
 function scanModal(inner, dismissable = false, review = false) {
   $('#modal-root').innerHTML = `
@@ -308,6 +391,11 @@ function scanModal(inner, dismissable = false, review = false) {
   const form = $('#scan-form');
   form.addEventListener('submit', e => { e.preventDefault(); if (review) applyReview(); });
   form.addEventListener('click', e => {
+    const editBtn = e.target.closest('[data-edit-kind]');
+    if (editBtn) {
+      openInputScreenForScanItem(editBtn.dataset.editKind, +editBtn.dataset.editI);
+      return;
+    }
     if (e.target.closest('[data-action="close-modal"]')) closeScanModal();
   });
 }

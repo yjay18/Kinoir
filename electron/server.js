@@ -601,29 +601,36 @@ function handle(staticRoot, dataRoot, runtime, req, res) {
   send(res, 405, 'Method not allowed');
 }
 
+/* Binding 0.0.0.0:P succeeds even when another process holds 127.0.0.1:P — and
+   loopback traffic then reaches *them*, so the app window would load whatever
+   dev server squatted the port. Probe the loopback address before claiming it.
+   ponytail: probe-then-bind has a tiny race; a retry loop is not worth it. */
+function loopbackFree(port) {
+  return new Promise(resolve => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(false));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(true)));
+  });
+}
+
 /* Start on preferredPort, walking forward a few ports if it's taken.
    `dataRoot` (writable: library/, Media/) defaults to staticRoot for dev.
    Resolves { server, port }. */
-function startServer(staticRoot, preferredPort = 4174, dataRoot = staticRoot, runtime = {}) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => handle(staticRoot, dataRoot, runtime, req, res));
-    let port = preferredPort;
-    const maxPort = preferredPort + 25;
-    let settled = false;
-    server.on('error', err => {
-      if (err.code === 'EADDRINUSE' && port < maxPort) {
-        port += 1;
-        server.listen(port, '0.0.0.0');
-      } else if (!settled) {
-        settled = true;
-        reject(err);
-      }
+async function startServer(staticRoot, preferredPort = 4174, dataRoot = staticRoot, runtime = {}) {
+  const server = http.createServer((req, res) => handle(staticRoot, dataRoot, runtime, req, res));
+  const maxPort = preferredPort + 25;
+  for (let port = preferredPort; port <= maxPort; port++) {
+    if (!await loopbackFree(port)) continue;
+    const bound = await new Promise(resolve => {
+      const onError = () => { server.removeListener('listening', onListening); resolve(false); };
+      const onListening = () => { server.removeListener('error', onError); resolve(true); };
+      server.once('error', onError);
+      server.once('listening', onListening);
+      server.listen(port, '0.0.0.0');
     });
-    server.listen(port, '0.0.0.0', () => {
-      settled = true;
-      resolve({ server, port });
-    });
-  });
+    if (bound) return { server, port };
+  }
+  throw new Error(`no free port between ${preferredPort} and ${maxPort}`);
 }
 
 module.exports = {

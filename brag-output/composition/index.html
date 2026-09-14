@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Kinoir — Brag Film</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/music/audio-data.js"></script>
+    <style>
+      :root {
+        --bg: #090b0f;
+        --ink: #f2f5fa;
+        --muted: #a8b0be;
+        --quiet: #778292;
+        --accent: #a7b0c0;
+        --accent-2: #75849d;
+        --line: rgba(218, 224, 234, 0.2);
+        --glass: rgba(210, 218, 230, 0.085);
+        --audio-rms: 0;
+        --audio-bass: 0;
+        --audio-treble: 0;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+      .clip { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; }
+      .stage-bg { position: absolute; inset: 0; overflow: hidden; background: #090b0f; }
+      .stage-bg::after { content: ""; position: absolute; inset: 0; opacity: 0.055; mix-blend-mode: soft-light; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E"); }
+      .orb { position: absolute; display: block; border-radius: 50%; filter: blur(110px); will-change: transform, opacity; }
+      #bg-orb-a { width: 920px; height: 920px; left: -310px; top: -410px; opacity: calc(0.22 + var(--audio-rms) * 0.08); background: radial-gradient(circle, rgba(90, 83, 103, 0.9), rgba(60, 69, 84, 0.05) 70%); }
+      #bg-orb-b { width: 760px; height: 760px; right: -240px; bottom: -330px; opacity: calc(0.18 + var(--audio-bass) * 0.08); background: radial-gradient(circle, rgba(32, 41, 54, 0.95), rgba(117, 132, 157, 0.03) 72%); }
+      #bg-orb-c { width: 520px; height: 520px; left: 760px; top: 260px; opacity: calc(0.09 + var(--audio-treble) * 0.04); background: radial-gradient(circle, rgba(117, 132, 157, 0.72), transparent 72%); }
+      .scene-inner { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .micro { color: #b7beca; font-size: 20px; font-weight: 650; letter-spacing: 0.18em; text-transform: uppercase; }
+      .hairline { display: block; width: 100%; height: 2px; background: rgba(218, 224, 234, 0.32); transform-origin: left center; }
+      .glass { border: 2px solid rgba(218, 224, 234, 0.2); background: rgba(210, 218, 230, 0.085); box-shadow: 0 38px 100px rgba(0, 0, 0, 0.48), inset 0 2px 0 rgba(242, 245, 250, 0.11); backdrop-filter: blur(26px) saturate(125%); }
+
+      .s1-layout { display: grid; grid-template-columns: 1.12fr 0.88fr; align-items: center; gap: 92px; padding: 126px 148px; }
+      .s1-copy { align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+      .s1-meta-row { display: flex; align-items: center; gap: 24px; width: 660px; margin-bottom: 64px; }
+      .s1-meta-row .hairline { flex: 1; }
+      .s1-title { margin: 0; max-width: 880px; font-size: 134px; line-height: 0.92; letter-spacing: -0.06em; font-weight: 710; }
+      .s1-title span { display: block; }
+      #s1-line-two { color: #a8b0be; margin-top: 20px; }
+      .s1-note { margin-top: 54px; color: #8f99a9; font-size: 28px; letter-spacing: -0.02em; }
+      .icon-stage { position: relative; width: 520px; height: 520px; justify-self: end; perspective: 1200px; }
+      .icon-halo { position: absolute; inset: 42px; border-radius: 50%; background: rgba(117, 132, 157, 0.24); filter: blur(78px); }
+      .kinoir-icon { position: absolute; inset: 0; width: 520px; height: 520px; display: block; border-radius: 112px; box-shadow: 0 70px 100px rgba(0, 0, 0, 0.58), 0 0 0 2px rgba(218, 224, 234, 0.08); }
+      .corner-index { position: absolute; right: 64px; bottom: 52px; color: #778292; font-size: 18px; letter-spacing: 0.16em; }
+
+      .product-scene { padding: 72px 94px 82px; }
+      .scene-kicker { position: absolute; top: 62px; left: 98px; z-index: 5; }
+      .scene-number { color: #778292; margin-right: 18px; }
+      .product-frame { position: absolute; left: 96px; right: 96px; top: 116px; height: 782px; border-radius: 36px; overflow: hidden; perspective: 1500px; }
+      .product-window { position: absolute; inset: 0; border-radius: 36px; overflow: hidden; transform-style: preserve-3d; }
+      .window-bar { position: absolute; z-index: 4; left: 0; right: 0; top: 0; height: 54px; display: flex; align-items: center; border-bottom: 1px solid rgba(218, 224, 234, 0.12); background: rgba(12, 14, 20, 0.86); }
+      .traffic { display: flex; gap: 10px; margin-left: 22px; }
+      .traffic i { width: 13px; height: 13px; border-radius: 50%; background: #3b414b; }
+      .window-title { position: absolute; left: 50%; transform: translateX(-50%); color: #858f9e; font-size: 17px; font-weight: 650; }
+      .ui-shot { position: absolute; inset: 54px 0 0; width: 100%; height: calc(100% - 54px); object-fit: cover; object-position: center top; display: block; }
+      #library-shot { opacity: 0; }
+      .hover-lift { position: absolute; z-index: 6; left: 128px; top: 210px; width: 460px; height: 330px; overflow: hidden; border-radius: 28px; opacity: 0; box-shadow: 0 34px 70px rgba(0, 0, 0, 0.58), 0 0 0 2px rgba(218, 224, 234, 0.22); }
+      .hover-lift img { position: absolute; width: 1400px; height: auto; left: -116px; top: -96px; display: block; }
+      .product-caption { position: absolute; z-index: 7; right: 130px; bottom: 58px; max-width: 1060px; margin: 0; padding: 28px 36px 31px; border-radius: 24px; color: #edf1f7; background: rgba(9, 11, 15, 0.84); border: 2px solid rgba(218, 224, 234, 0.19); box-shadow: 0 28px 70px rgba(0, 0, 0, 0.48); font-size: 52px; line-height: 1.08; letter-spacing: -0.045em; font-weight: 640; }
+
+      .search-layout { display: grid; grid-template-columns: 0.94fr 1.06fr; gap: 70px; padding: 138px 118px 112px; }
+      .search-copy { position: relative; z-index: 4; align-self: center; }
+      .search-copy h2, .concierge-copy h2, .outro-copy h2 { margin: 28px 0 26px; font-size: 94px; line-height: 0.98; letter-spacing: -0.062em; font-weight: 680; }
+      .search-copy p, .concierge-copy p { margin: 0; max-width: 650px; color: #9da6b4; font-size: 31px; line-height: 1.42; letter-spacing: -0.024em; }
+      .search-stage { position: relative; align-self: center; height: 750px; perspective: 1500px; }
+      .library-backdrop { position: absolute; inset: 0; overflow: hidden; border-radius: 34px; opacity: 0.56; }
+      .library-backdrop img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center top; }
+      .library-backdrop::after { content: ""; position: absolute; inset: 0; background: rgba(5, 7, 10, 0.35); }
+      .search-panel { position: absolute; z-index: 3; left: 58px; right: 58px; top: 132px; padding: 34px; border-radius: 30px; }
+      .search-input { height: 92px; display: flex; align-items: center; gap: 19px; padding: 0 30px; border-radius: 24px; border: 2px solid rgba(210, 218, 230, 0.26); background: rgba(9, 11, 15, 0.8); box-shadow: 0 0 0 8px rgba(167, 176, 192, 0.08); color: #eef2f7; font-size: 33px; }
+      .search-glyph { color: #a7b0c0; font-size: 42px; transform: translateY(-2px); }
+      .query-words { display: flex; gap: 10px; min-width: 0; }
+      .query-word { display: inline-block; opacity: 0; }
+      .query-caret { display: inline-block; width: 3px; height: 42px; background: #cbd2dc; }
+      .search-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; color: #9ca6b5; font-size: 21px; }
+      .local-chip { display: inline-flex; gap: 10px; align-items: center; color: #d7dce4; }
+      .local-chip::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #b8c2d0; box-shadow: 0 0 16px rgba(184, 194, 208, 0.62); }
+      .result-chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+      .result-chip { display: inline-block; padding: 16px 20px; border: 2px solid rgba(210, 218, 230, 0.18); border-radius: 999px; background: rgba(210, 218, 230, 0.08); color: #d8dde5; font-size: 23px; opacity: 0; }
+
+      .concierge-layout { display: grid; grid-template-columns: 1fr 0.78fr; gap: 78px; padding: 104px 130px 82px; }
+      .concierge-copy { align-self: center; position: relative; z-index: 4; }
+      .privacy-badge { display: inline-flex; align-items: center; gap: 12px; margin-top: 38px; padding: 17px 22px; border-radius: 999px; border: 2px solid rgba(210, 218, 230, 0.18); background: rgba(210, 218, 230, 0.07); color: #dfe4eb; font-size: 22px; font-weight: 620; }
+      .privacy-badge i { width: 10px; height: 10px; border-radius: 50%; background: #b9c3d0; box-shadow: 0 0 14px rgba(185, 195, 208, 0.55); }
+      .concierge-stage { position: relative; align-self: center; height: 896px; }
+      .concierge-underlay { position: absolute; left: -70px; right: 118px; top: 80px; bottom: 70px; overflow: hidden; border-radius: 32px; opacity: 0.33; }
+      .concierge-underlay img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+      .concierge-panel { position: absolute; z-index: 3; right: 8px; top: 0; width: 452px; height: 896px; overflow: hidden; border-radius: 36px; background: #10141c; }
+      .concierge-panel img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+      .recommend-focus { position: absolute; z-index: 5; right: 24px; top: 604px; width: 420px; height: 142px; border-radius: 24px; border: 3px solid rgba(199, 207, 219, 0.78); box-shadow: 0 0 0 8px rgba(167, 176, 192, 0.09), 0 0 34px rgba(167, 176, 192, 0.22); opacity: 0; }
+
+      .outro-layout { display: grid; grid-template-columns: 0.82fr 1.18fr; align-items: center; gap: 94px; padding: 122px 150px; }
+      .outro-icon-stage { position: relative; width: 470px; height: 470px; justify-self: end; perspective: 1200px; }
+      .outro-icon-stage .kinoir-icon { width: 470px; height: 470px; border-radius: 102px; }
+      .outro-icon-stage .icon-halo { inset: 50px; }
+      .outro-copy h2 { max-width: 900px; font-size: 104px; }
+      .outro-brand { display: flex; align-items: center; gap: 26px; margin-top: 44px; }
+      .outro-brand strong { font-size: 34px; letter-spacing: -0.035em; }
+      .outro-brand span { color: #8993a2; font-size: 21px; letter-spacing: 0.04em; }
+      .outro-rule { width: 110px; height: 2px; background: rgba(218, 224, 234, 0.3); }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-at0g" id="root" data-composition-id="main" data-start="0" data-duration="20" data-width="1920" data-height="1080">
+      <section data-hf-id="hf-csnj" id="ambient" class="clip" data-start="0" data-duration="20" data-track-index="0" aria-hidden="true"><div data-hf-id="hf-oofi" class="stage-bg"><span data-hf-id="hf-ct5k" id="bg-orb-a" class="orb" data-layout-allow-overflow=""></span><span data-hf-id="hf-non7" id="bg-orb-b" class="orb" data-layout-allow-overflow=""></span><span data-hf-id="hf-jqj6" id="bg-orb-c" class="orb" data-layout-allow-overflow=""></span></div></section>
+
+      <section data-hf-id="hf-pl2v" id="scene-1" class="clip" data-start="0" data-duration="3.27" data-track-index="1">
+        <div data-hf-id="hf-lo2t" id="s1-inner" class="scene-inner s1-layout">
+          <div data-hf-id="hf-wqca" class="s1-copy">
+            <div data-hf-id="hf-9tgf" id="s1-meta" class="s1-meta-row"><span data-hf-id="hf-alfb" class="micro">Kinoir / macOS</span><span data-hf-id="hf-a0e7" class="hairline"></span></div>
+            <h1 data-hf-id="hf-hmfr" class="s1-title"><span data-hf-id="hf-50t0" id="s1-line-one">Your films.</span><span data-hf-id="hf-ggim" id="s1-line-two">Your files.</span></h1>
+            <p data-hf-id="hf-0n94" id="s1-note" class="s1-note">A local-first media library for the collection you already have.</p>
+          </div>
+          <div data-hf-id="hf-9r1b" id="s1-icon-stage" class="icon-stage"><span data-hf-id="hf-3zuu" id="s1-icon-halo" class="icon-halo"></span><img data-hf-id="hf-hhku" id="s1-icon" class="kinoir-icon" src="assets/brand/kinoir-icon.png" alt="Kinoir app icon"></div>
+          <span data-hf-id="hf-w8f0" class="corner-index">01 / OWN IT</span>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-d192" id="scene-2" class="clip" data-start="3.27" data-duration="5.47" data-track-index="1">
+        <div data-hf-id="hf-64jz" id="s2-inner" class="scene-inner product-scene">
+          <div data-hf-id="hf-fnaw" id="s2-kicker" class="scene-kicker micro"><span data-hf-id="hf-js6p" class="scene-number">02</span> Browse your own collection</div>
+          <div data-hf-id="hf-xy2t" class="product-frame"><div data-hf-id="hf-lwqq" id="product-window" class="product-window glass">
+            <div data-hf-id="hf-85t8" class="window-bar"><span data-hf-id="hf-lp3g" class="traffic"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i></span><span data-hf-id="hf-n3ko" class="window-title">Kinoir</span></div>
+            <img data-hf-id="hf-7ohl" id="home-shot" class="ui-shot" src="assets/ui/kinoir-home.webp" alt="Kinoir home screen with a featured movie and Continue Watching" data-layout-allow-overflow="">
+            <img data-hf-id="hf-yk1w" id="library-shot" class="ui-shot" src="assets/ui/kinoir-library.webp" alt="Kinoir poster library with hover preview" data-layout-allow-overflow="">
+            <div data-hf-id="hf-8h1m" id="hover-lift" class="hover-lift glass"><img data-hf-id="hf-ndo5" src="assets/ui/kinoir-library-hover.webp" alt="Enlarged Kinoir hover preview" data-layout-allow-overflow=""></div>
+          </div></div>
+          <p data-hf-id="hf-s9m5" id="product-caption" class="product-caption">A front end for the collection you already have.</p>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-k6cw" id="scene-3" class="clip" data-start="8.74" data-duration="4.37" data-track-index="1">
+        <div data-hf-id="hf-ufnj" id="s3-inner" class="scene-inner search-layout">
+          <div data-hf-id="hf-byzi" class="search-copy"><div data-hf-id="hf-aojx" id="s3-kicker" class="micro"><span data-hf-id="hf-k6hq" class="scene-number">03</span> Offline semantic search</div><h2 data-hf-id="hf-9cpv" id="s3-title">Search the way you remember.</h2><p data-hf-id="hf-fayg" id="s3-body">Title, subject, tone, genre, or the detail that is still stuck in your head.</p></div>
+          <div data-hf-id="hf-0ahi" id="search-stage" class="search-stage">
+            <div data-hf-id="hf-u2ms" class="library-backdrop glass"><img data-hf-id="hf-ukaf" src="assets/ui/kinoir-library-search.webp" alt="Kinoir library behind search"></div>
+            <div data-hf-id="hf-615i" id="search-panel" class="search-panel glass">
+              <div data-hf-id="hf-t7a3" class="search-input"><span data-hf-id="hf-s7yb" class="search-glyph">⌕</span><span data-hf-id="hf-jeym" class="query-words" aria-label="quiet science fiction"><span data-hf-id="hf-988j" id="query-quiet" class="query-word">quiet</span><span data-hf-id="hf-nqsv" id="query-science" class="query-word">science</span><span data-hf-id="hf-6u6z" id="query-fiction" class="query-word">fiction</span></span><span data-hf-id="hf-nmef" id="query-caret" class="query-caret"></span></div>
+              <div data-hf-id="hf-sw0y" class="search-meta"><span data-hf-id="hf-bafg" class="local-chip">Search works offline</span><span data-hf-id="hf-jdai">/</span></div>
+              <div data-hf-id="hf-vmrh" class="result-chips"><span data-hf-id="hf-mone" id="chip-atmospheric" class="result-chip">atmospheric</span><span data-hf-id="hf-zj69" id="chip-slow" class="result-chip">slow burn</span><span data-hf-id="hf-ehwy" id="chip-space" class="result-chip">space</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-1z3r" id="scene-4" class="clip" data-start="13.11" data-duration="4.36" data-track-index="1">
+        <div data-hf-id="hf-lajh" id="s4-inner" class="scene-inner concierge-layout">
+          <div data-hf-id="hf-rii5" class="concierge-copy"><div data-hf-id="hf-k16b" id="s4-kicker" class="micro"><span data-hf-id="hf-izkn" class="scene-number">04</span> Local AI Concierge</div><h2 data-hf-id="hf-3zj3" id="s4-title">Ask your own library.</h2><p data-hf-id="hf-70d5" id="s4-body">Recommendations can stay grounded in titles you actually have—and every result remains playable.</p><div data-hf-id="hf-ahxh" id="privacy-badge" class="privacy-badge"><i data-hf-id="hf-ylp6"></i>Runs locally via Ollama · library-only</div></div>
+          <div data-hf-id="hf-msne" id="concierge-stage" class="concierge-stage"><div data-hf-id="hf-128i" class="concierge-underlay glass"><img data-hf-id="hf-wtc7" src="assets/ui/kinoir-library-concierge.webp" alt="Kinoir library behind Concierge"></div><div data-hf-id="hf-98h6" id="concierge-panel" class="concierge-panel glass"><img data-hf-id="hf-dltj" src="assets/ui/kinoir-concierge.webp" alt="Kinoir AI Concierge recommending films from the user's library" data-layout-allow-overflow=""></div><div data-hf-id="hf-p9l0" id="recommend-focus" class="recommend-focus"></div></div>
+        </div>
+      </section>
+
+      <section data-hf-id="hf-xc0c" id="scene-5" class="clip" data-start="17.47" data-duration="2.53" data-track-index="1">
+        <div data-hf-id="hf-ntuc" id="s5-inner" class="scene-inner outro-layout">
+          <div data-hf-id="hf-pnha" id="outro-icon-stage" class="outro-icon-stage"><span data-hf-id="hf-oo5p" id="outro-icon-halo" class="icon-halo"></span><img data-hf-id="hf-a0w1" id="outro-icon" class="kinoir-icon" src="assets/brand/kinoir-icon-outro.png" alt="Kinoir app icon"></div>
+          <div data-hf-id="hf-0gt5" class="outro-copy"><div data-hf-id="hf-5lbg" id="s5-kicker" class="micro">Local-first / Open source</div><h2 data-hf-id="hf-fakm" id="s5-title">No service in the middle.</h2><div data-hf-id="hf-r6oc" id="outro-brand" class="outro-brand"><strong data-hf-id="hf-g3e2">Kinoir</strong><span data-hf-id="hf-71jl" class="outro-rule"></span><span data-hf-id="hf-to86">macOS · Account-free · MIT</span></div></div>
+        </div>
+      </section>
+
+      <audio data-hf-id="hf-z9ri" id="bg-music" data-timeline-role="music" data-start="0" data-duration="20" data-track-index="10" data-volume="1" src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3"></audio>
+      <audio data-hf-id="hf-v7t1" id="sfx-search" data-start="8.74" data-duration="0.01" data-track-index="11" data-volume="0.58" src="assets/sfx/interface/click_003.ogg"></audio>
+      <audio data-hf-id="hf-5p4c" id="sfx-concierge" data-start="13.11" data-duration="0.12" data-track-index="12" data-volume="0.56" src="assets/sfx/interface/bong_001.ogg"></audio>
+      <audio data-hf-id="hf-yd16" id="sfx-outro" data-start="17.47" data-duration="0.18" data-track-index="13" data-volume="0.62" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+
+      tl.set("#bg-music", { volume: 0.26 }, 0);
+
+      tl.fromTo("#bg-orb-a", { x: -70, y: -35, scale: 0.94 }, { x: 120, y: 90, scale: 1.12, duration: 20, ease: "none" }, 0);
+      tl.fromTo("#bg-orb-b", { x: 85, y: 70, scale: 1.06 }, { x: -115, y: -80, scale: 0.92, duration: 20, ease: "none" }, 0);
+      tl.fromTo("#bg-orb-c", { x: -35, y: 20, scale: 0.9 }, { x: 95, y: -55, scale: 1.14, duration: 20, ease: "sine.inOut" }, 0);
+
+      if (window.AUDIO_DATA && Array.isArray(window.AUDIO_DATA.frames)) {
+        window.AUDIO_DATA.frames.forEach((frame) => {
+          tl.call(() => {
+            const root = document.documentElement;
+            root.style.setProperty("--audio-rms", String(frame.rms));
+            root.style.setProperty("--audio-bass", String(frame.bands[0] || 0));
+            root.style.setProperty("--audio-treble", String(frame.bands[12] || 0));
+          }, [], frame.time);
+        });
+      }
+
+      tl.fromTo("#s1-meta", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.58, ease: "power3.out" }, 0.18);
+      tl.fromTo("#s1-line-one", { opacity: 0, y: 58, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.72, ease: "expo.out" }, 0.3);
+      tl.fromTo("#s1-line-two", { opacity: 0, y: 64 }, { opacity: 1, y: 0, duration: 0.74, ease: "power4.out" }, 0.76);
+      tl.fromTo("#s1-note", { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.55, ease: "sine.out" }, 1.25);
+      tl.fromTo("#s1-icon-stage", { opacity: 0, x: 90, scale: 0.86, rotationY: -12 }, { opacity: 1, x: 0, scale: 1, rotationY: 0, transformPerspective: 1200, duration: 1.05, ease: "power4.out" }, 0.28);
+      tl.fromTo("#s1-icon-halo", { opacity: 0.2, scale: 0.82 }, { opacity: 0.72, scale: 1.08, duration: 2.5, ease: "sine.inOut" }, 0.45);
+      tl.to("#s1-inner", { opacity: 0, x: -54, duration: 0.36, ease: "power3.in" }, 2.91);
+      tl.set("#s1-inner", { opacity: 0 }, 3.27);
+
+      tl.fromTo("#product-window", { opacity: 0, y: 86, scale: 0.92, rotationX: 7 }, { opacity: 1, y: 0, scale: 1, rotationX: 0, transformPerspective: 1500, duration: 0.9, ease: "power4.out" }, 3.37);
+      tl.fromTo("#s2-kicker", { opacity: 0, x: -26 }, { opacity: 1, x: 0, duration: 0.52, ease: "expo.out" }, 3.45);
+      tl.fromTo("#product-caption", { opacity: 0, y: 42 }, { opacity: 1, y: 0, duration: 0.68, ease: "power3.out" }, 4.0);
+      tl.to("#home-shot", { scale: 1.045, x: -18, y: -8, duration: 3.1, ease: "sine.inOut" }, 3.4);
+      tl.to("#home-shot", { opacity: 0, duration: 0.28, ease: "power2.in" }, 6.5);
+      tl.fromTo("#library-shot", { opacity: 0, scale: 1.04, x: 18 }, { opacity: 1, scale: 1.07, x: -22, duration: 0.52, ease: "power2.out" }, 6.56);
+      tl.to("#product-caption", { opacity: 0, y: 24, duration: 0.3, ease: "power2.in" }, 6.45);
+      // beat-locked: hover preview payoff resolves near the 8.74s cue.
+      tl.fromTo("#hover-lift", { opacity: 0, x: -36, y: 24, scale: 0.9 }, { opacity: 1, x: 0, y: 0, scale: 1, duration: 0.52, ease: "power4.out" }, 7.64);
+      tl.to("#hover-lift", { scale: 1.035, duration: 0.34, ease: "sine.inOut" }, 8.16);
+      tl.to("#s2-inner", { opacity: 0, scale: 1.018, duration: 0.24, ease: "power3.in" }, 8.5);
+      tl.set("#s2-inner", { opacity: 0 }, 8.74);
+
+      tl.fromTo("#s3-kicker", { opacity: 0, x: -24 }, { opacity: 1, x: 0, duration: 0.46, ease: "power3.out" }, 8.84);
+      tl.fromTo("#s3-title", { opacity: 0, y: 44 }, { opacity: 1, y: 0, duration: 0.62, ease: "expo.out" }, 8.96);
+      tl.fromTo("#s3-body", { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.56, ease: "sine.out" }, 9.34);
+      // beat-locked: search field focus at the 8.74s strong cue.
+      tl.fromTo("#search-stage", { opacity: 0, x: 84, scale: 0.94, rotationY: -5 }, { opacity: 1, x: 0, scale: 1, rotationY: 0, transformPerspective: 1500, duration: 0.76, ease: "power4.out" }, 8.74);
+      // beat-grid: grouped readable query reveals at 9.29s, 9.83s, 10.37s.
+      tl.fromTo("#query-quiet", { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.18, ease: "power2.out" }, 9.29);
+      tl.fromTo("#query-science", { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.18, ease: "power2.out" }, 9.83);
+      tl.fromTo("#query-fiction", { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.18, ease: "power2.out" }, 10.37);
+      tl.to("#query-caret", { opacity: 0.24, duration: 0.28, yoyo: true, repeat: 6, ease: "steps(1)" }, 9.29);
+      tl.fromTo("#chip-atmospheric", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.32, ease: "power3.out" }, 11.46);
+      tl.fromTo("#chip-slow", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.32, ease: "power3.out" }, 12.02);
+      tl.fromTo("#chip-space", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.32, ease: "power3.out" }, 12.55);
+      tl.to("#s3-inner", { opacity: 0, x: -40, duration: 0.28, ease: "power3.in" }, 12.83);
+      tl.set("#s3-inner", { opacity: 0 }, 13.11);
+
+      tl.fromTo("#s4-kicker", { opacity: 0, x: -28 }, { opacity: 1, x: 0, duration: 0.46, ease: "power3.out" }, 13.22);
+      tl.fromTo("#s4-title", { opacity: 0, y: 46 }, { opacity: 1, y: 0, duration: 0.64, ease: "expo.out" }, 13.3);
+      tl.fromTo("#s4-body", { opacity: 0, x: -32 }, { opacity: 1, x: 0, duration: 0.58, ease: "sine.out" }, 13.76);
+      tl.fromTo("#privacy-badge", { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.48, ease: "back.out(1.4)" }, 14.26);
+      // beat-locked: Concierge panel lands at the 13.11s strong cue.
+      tl.fromTo("#concierge-stage", { opacity: 0, x: 110, scale: 0.92, rotationY: -7 }, { opacity: 1, x: 0, scale: 1, rotationY: 0, transformPerspective: 1400, duration: 0.82, ease: "power4.out" }, 13.11);
+      tl.to("#concierge-panel img", { scale: 1.028, y: -12, duration: 3.8, ease: "sine.inOut" }, 13.22);
+      tl.fromTo("#recommend-focus", { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.48, ease: "power3.out" }, 15.29);
+      tl.to("#recommend-focus", { opacity: 0.62, duration: 0.68, yoyo: true, repeat: 1, ease: "sine.inOut" }, 15.77);
+      tl.to("#s4-inner", { opacity: 0, scale: 1.02, duration: 0.28, ease: "power3.in" }, 17.19);
+      tl.set("#s4-inner", { opacity: 0 }, 17.47);
+
+      // beat-locked: final icon and privacy lockup land at the 17.47s strong cue.
+      tl.fromTo("#outro-icon-stage", { opacity: 0, x: -82, scale: 0.82, rotationY: 10 }, { opacity: 1, x: 0, scale: 1, rotationY: 0, transformPerspective: 1200, duration: 0.72, ease: "power4.out" }, 17.47);
+      tl.fromTo("#outro-icon-halo", { opacity: 0.18, scale: 0.76 }, { opacity: 0.7, scale: 1.08, duration: 1.9, ease: "sine.inOut" }, 17.55);
+      tl.fromTo("#s5-kicker", { opacity: 0, x: 26 }, { opacity: 1, x: 0, duration: 0.46, ease: "power3.out" }, 17.62);
+      tl.fromTo("#s5-title", { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: 0.66, ease: "expo.out" }, 17.72);
+      tl.fromTo("#outro-brand", { opacity: 0, x: 36 }, { opacity: 1, x: 0, duration: 0.54, ease: "sine.out" }, 18.34);
+      tl.to("#outro-icon", { scale: 1.02, duration: 1.4, ease: "sine.inOut" }, 18.0);
+      tl.to("#bg-music", { volume: 0.08, duration: 1.3, ease: "sine.in" }, 18.7);
+
+      window.__timelines.main = tl;
+    </script>
+  </body>
+</html>

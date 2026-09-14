@@ -749,6 +749,7 @@ main { width: 100%; padding: 118px var(--page-gutter) 90px; outline: none; }
   border-radius: 8px; padding: 5px 9px; outline: none; }
 .scan-title-edit:focus { border-color: var(--stroke-bright);
   box-shadow: 0 0 0 3px var(--focus-ring); }
+.scan-edit-btn { flex-shrink: 0; white-space: nowrap; font-size: 0.8rem; padding: 6px 12px; }
 
 /* ---------- ⋯ more-menu + subtitle rows ---------- */
 .more-menu { position: fixed; z-index: 95; min-width: 230px; padding: 6px;

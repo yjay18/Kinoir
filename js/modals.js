@@ -156,16 +156,20 @@ function mergeEpisodeLinks(seasons, lookups) {
   return keptLinks;
 }
 
-export function openAddModal(editId = null) {
-  const item = editId ? state.library.find(i => i.id === editId) : null;
+export function openAddModal(editId = null, onSave = null, onCancel = null) {
+  const item = typeof editId === 'object' && editId !== null
+    ? editId
+    : (editId ? state.library.find(i => i.id === editId) : null);
+  const isExisting = Boolean(item?.id && state.library.some(i => i.id === item.id));
   const type = item?.type || 'movie';
   let currentTvmazeId = item?.tvmazeId || '';
   let currentWikiTitle = item?.wikiTitle || '';
+  if (onCancel) onModalClose = onCancel;
   $('#modal-root').innerHTML = `
   <div class="modal-overlay" data-overlay>
     <form class="modal glass" id="add-form">
       <div class="modal-head">
-        <h2>${item ? 'Edit' : 'Add'} title</h2>
+        <h2>${isExisting ? 'Edit' : 'Add'} title</h2>
         <div class="seg" role="radiogroup" aria-label="Type">
           <button type="button" data-type="movie" class="${type === 'movie' ? 'active' : ''}">Movie</button>
           <button type="button" data-type="show"  class="${type === 'show'  ? 'active' : ''}">TV Show</button>
@@ -236,7 +240,7 @@ export function openAddModal(editId = null) {
       </div>
       <div class="modal-foot">
         <button type="button" class="pill-btn" data-action="close-modal">Cancel <kbd>⎋</kbd></button>
-        <button type="submit" class="pill-btn accent">${item ? 'Save changes' : 'Add to library'} <kbd>⏎</kbd></button>
+        <button type="submit" class="pill-btn accent">${isExisting ? 'Save changes' : 'Add to library'} <kbd>⏎</kbd></button>
       </div>
     </form>
   </div>`;
@@ -409,13 +413,17 @@ export function openAddModal(editId = null) {
         })).filter(ep => ep.title || ep.link || ep.localPath)
       })).filter(s => s.episodes.length);
     }
-    if (item) state.library = state.library.map(i => i.id === item.id ? data : i);
+    if (isExisting) state.library = state.library.map(i => i.id === item.id ? data : i);
     else state.library.unshift(data);
 
     saveLibrary();
+    onModalClose = null;
     closeModal();
-    toast(item ? 'Saved ✓' : `Added “${data.title}” ✓`);
-    render();
+    if (onSave) onSave(data);
+    else {
+      toast(isExisting ? 'Saved ✓' : `Added “${data.title}” ✓`);
+      render();
+    }
   });
 
   $('#f-title').focus();

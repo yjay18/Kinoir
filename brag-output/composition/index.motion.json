@@ -1,0 +1,13 @@
+{
+  "duration": 20,
+  "assertions": [
+    { "kind": "appearsBy", "selector": "#s1-line-one", "bySec": 0.9 },
+    { "kind": "before", "a": "#s1-line-one", "b": "#s1-line-two" },
+    { "kind": "staysInFrame", "selector": "#product-window" },
+    { "kind": "appearsBy", "selector": "#search-panel", "bySec": 9.8 },
+    { "kind": "before", "a": "#query-quiet", "b": "#query-fiction" },
+    { "kind": "staysInFrame", "selector": "#concierge-panel" },
+    { "kind": "appearsBy", "selector": "#s5-title", "bySec": 18.7 },
+    { "kind": "keepsMoving", "withinSelector": "#root", "maxStaticSec": 2 }
+  ]
+}
